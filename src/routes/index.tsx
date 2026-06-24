@@ -214,7 +214,8 @@ function Varaigya() {
     (new Date(nextDue).getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
   );
 
-  const greeting = getGreeting();
+  const [greeting, setGreeting] = useState("Hello");
+  useEffect(() => setGreeting(getGreeting()), []);
 
   function addIncome() {
     if (!newIncome.source || !newIncome.amount) return;
