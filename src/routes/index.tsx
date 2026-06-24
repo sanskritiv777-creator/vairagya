@@ -96,7 +96,7 @@ function initials(name: string) {
   return name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
 }
 
-type Theme = (typeof THEMES)["dark"];
+type Theme = (typeof THEMES)[keyof typeof THEMES];
 
 function SetAsideRing({ amount, theme }: { percent: number; amount: number; theme: Theme }) {
   const r = 64;
