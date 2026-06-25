@@ -87,8 +87,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "Vairagya" },
       { name: "twitter:description", content: "VAIRAGYA is a modern personal finance app designed to help you track spending, manage income, monitor financial health, and make smarter money decisions." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/y0ypBTH6GNbfRHGLhSX6vNsERLk2/social-images/social-1782391063080-1000156053.webp" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/y0ypBTH6GNbfRHGLhSX6vNsERLk2/social-images/social-1782391063080-1000156053.webp" },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/y0ypBTH6GNbfRHGLhSX6vNsERLk2/social-images/social-1782363241844-1000156053.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/y0ypBTH6GNbfRHGLhSX6vNsERLk2/social-images/social-1782363241844-1000156053.webp" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
