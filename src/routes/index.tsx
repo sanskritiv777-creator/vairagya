@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowRight, Lock, Sparkles, TrendingUp } from "lucide-react";
+import { ArrowRight, Gem, Lock, Sparkles, TrendingUp } from "lucide-react";
 import splashBg from "@/assets/splash-bg.jpg";
 
 export const Route = createFileRoute("/")({
@@ -73,7 +73,10 @@ function SplashScreen() {
       {/* Content */}
       <div className="relative z-10 mx-auto flex min-h-screen max-w-md flex-col px-7 pt-14 pb-8">
         {/* Brand */}
-        <div className="text-center">
+        <div className="flex flex-col items-center text-center">
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-purple-300/30 bg-white/[0.06] backdrop-blur-xl shadow-[0_8px_30px_-8px_rgba(168,85,247,0.6)]">
+            <Gem className="h-6 w-6 text-purple-200" strokeWidth={1.4} />
+          </div>
           <p className="text-[11px] font-medium tracking-[0.45em] text-white/70">
             {slide.eyebrow}
           </p>
