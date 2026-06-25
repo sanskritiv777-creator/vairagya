@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowRight, Lock, Sparkles, TrendingUp } from "lucide-react";
+import { ArrowRight, Gem, Lock, Sparkles, TrendingUp } from "lucide-react";
 import splashBg from "@/assets/splash-bg.jpg";
 
 export const Route = createFileRoute("/")({
