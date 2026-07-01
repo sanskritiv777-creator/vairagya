@@ -208,7 +208,7 @@ function Dashboard() {
             <Menu size={18} />
           </button>
           <div className="text-[11px] uppercase tracking-[0.25em] text-purple-200/60">Varaigya · v1</div>
-          <button className="w-10 h-10 rounded-full va-glass flex items-center justify-center relative active:scale-95 transition">
+          <button onClick={() => setTab("reminders")} className="w-10 h-10 rounded-full va-glass flex items-center justify-center relative active:scale-95 transition" aria-label="Reminders">
             <Bell size={17} />
             <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-fuchsia-400" />
           </button>
