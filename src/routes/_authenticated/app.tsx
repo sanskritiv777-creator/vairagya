@@ -419,6 +419,9 @@ function Dashboard() {
         {sheet === "menu" && (
           <BottomSheet title="Quick menu" onClose={() => setSheet(null)}>
             {[
+              { icon: PieChart, label: "Insights & ring chart", onClick: () => { setTab("insights"); setSheet(null); } },
+              { icon: BellRing, label: "Reminders & alarms", onClick: () => { setTab("reminders"); setSheet(null); } },
+              { icon: Calculator, label: "Quick calculator", onClick: () => { setTab("calc"); setSheet(null); } },
               { icon: Wallet, label: "View income ledger", onClick: () => { setTab("ledger"); setSheet(null); } },
               { icon: Receipt, label: "View expenses", onClick: () => { setTab("expenses"); setSheet(null); } },
               { icon: Percent, label: "Adjust tax rate", onClick: () => { setTab("profile"); setSheet(null); } },
