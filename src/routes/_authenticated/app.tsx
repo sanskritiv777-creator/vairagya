@@ -317,7 +317,14 @@ function Dashboard() {
 
         {tab !== "home" && (
           <SecondarySheet
-            title={tab === "ledger" ? "Income" : tab === "expenses" ? "Expenses" : "Profile"}
+            title={
+              tab === "ledger" ? "Income" :
+              tab === "expenses" ? "Expenses" :
+              tab === "profile" ? "Profile" :
+              tab === "insights" ? "Insights" :
+              tab === "reminders" ? "Reminders & alarms" :
+              "Calculator"
+            }
             onClose={() => setTab("home")}
           >
             {tab === "ledger" && (
@@ -334,6 +341,19 @@ function Dashboard() {
                 emptyText="No expenses logged yet."
               />
             )}
+            {tab === "insights" && (
+              <InsightsPanel
+                income={totalIncome}
+                expenses={totalExpenses}
+                setAside={setAside}
+                safeToSpend={safeToSpend}
+                taxRate={taxRate}
+              />
+            )}
+            {tab === "reminders" && (
+              <RemindersPanel nextDue={nextDue} daysUntilDue={daysUntilDue} />
+            )}
+            {tab === "calc" && <CalculatorPanel />}
             {tab === "profile" && (
               <ProfilePanel
                 taxRate={taxRate}
