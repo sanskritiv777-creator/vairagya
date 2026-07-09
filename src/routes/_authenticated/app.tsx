@@ -336,8 +336,11 @@ function Dashboard() {
                     {r.kind === "in" ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13.5px] text-purple-50 truncate">{r.label}</div>
-                    <div className="text-[11px] text-purple-200/50">{r.meta}</div>
+                    <div className="text-[13.5px] text-purple-50 truncate flex items-center gap-1.5">
+                      {r.label}
+                      {r.upi && <span className="text-[9px] px-1.5 py-0.5 rounded bg-fuchsia-500/20 text-fuchsia-200 tracking-wide">UPI</span>}
+                    </div>
+                    <div className="text-[11px] text-purple-200/50 truncate">{r.meta}</div>
                   </div>
                   <div className={`va-mono text-[13px] shrink-0 ${r.kind === "in" ? "text-emerald-300" : "text-fuchsia-200"}`}>
                     {r.kind === "in" ? "+" : "−"}{currency(r.amount)}
