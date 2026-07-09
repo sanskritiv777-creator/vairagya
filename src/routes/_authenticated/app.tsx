@@ -326,6 +326,8 @@ function Dashboard() {
               tab === "profile" ? "Profile" :
               tab === "insights" ? "Insights" :
               tab === "reminders" ? "Reminders & alarms" :
+              tab === "upi" ? "UPI transactions" :
+              tab === "ai" ? "AI insights" :
               "Calculator"
             }
             onClose={() => setTab("home")}
