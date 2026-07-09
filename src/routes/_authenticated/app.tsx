@@ -5,8 +5,11 @@ import {
   Plus, X, Bell, Menu, ArrowUpRight, ArrowDownLeft, Wallet,
   Percent, CalendarClock, Home, PieChart, Sparkles, ChevronRight,
   User, Receipt, LogOut, Loader2, Calculator, BellRing, Delete, Trash2,
+  Smartphone, Brain, RefreshCw, TrendingUp, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { generateInsights } from "@/lib/insights.functions";
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({
