@@ -426,6 +426,8 @@ function Dashboard() {
         {sheet === "menu" && (
           <BottomSheet title="Quick menu" onClose={() => setSheet(null)}>
             {[
+              { icon: Smartphone, label: "UPI transactions", onClick: () => { setTab("upi"); setSheet(null); } },
+              { icon: Brain, label: "AI insights", onClick: () => { setTab("ai"); setSheet(null); } },
               { icon: PieChart, label: "Insights & ring chart", onClick: () => { setTab("insights"); setSheet(null); } },
               { icon: BellRing, label: "Reminders & alarms", onClick: () => { setTab("reminders"); setSheet(null); } },
               { icon: Calculator, label: "Quick calculator", onClick: () => { setTab("calc"); setSheet(null); } },
