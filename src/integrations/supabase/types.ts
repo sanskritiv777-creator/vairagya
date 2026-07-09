@@ -74,6 +74,45 @@ export type Database = {
         }
         Relationships: []
       }
+      upi_transactions: {
+        Row: {
+          amount: number
+          category: Database["public"]["Enums"]["upi_category"]
+          counterparty: string
+          created_at: string
+          direction: string
+          id: string
+          note: string | null
+          occurred_at: string
+          upi_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          category?: Database["public"]["Enums"]["upi_category"]
+          counterparty: string
+          created_at?: string
+          direction: string
+          id?: string
+          note?: string | null
+          occurred_at?: string
+          upi_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          category?: Database["public"]["Enums"]["upi_category"]
+          counterparty?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          note?: string | null
+          occurred_at?: string
+          upi_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -83,6 +122,12 @@ export type Database = {
     }
     Enums: {
       txn_kind: "income" | "expense"
+      upi_category:
+        | "client_payment"
+        | "personal"
+        | "business_expense"
+        | "refund"
+        | "other"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -211,6 +256,13 @@ export const Constants = {
   public: {
     Enums: {
       txn_kind: ["income", "expense"],
+      upi_category: [
+        "client_payment",
+        "personal",
+        "business_expense",
+        "refund",
+        "other",
+      ],
     },
   },
 } as const
