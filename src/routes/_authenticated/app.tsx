@@ -359,6 +359,8 @@ function Dashboard() {
               <RemindersPanel nextDue={nextDue} daysUntilDue={daysUntilDue} />
             )}
             {tab === "calc" && <CalculatorPanel />}
+            {tab === "upi" && <UpiPanel />}
+            {tab === "ai" && <AIInsightsPanel />}
             {tab === "profile" && (
               <ProfilePanel
                 taxRate={taxRate}
