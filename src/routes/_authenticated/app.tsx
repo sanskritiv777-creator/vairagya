@@ -136,13 +136,16 @@ function Dashboard() {
 
   const profile = profileQuery.data;
   const txns = txnsQuery.data ?? [];
+  const upiTxns = upiQuery.data ?? [];
   const taxRate = profile?.tax_rate ?? 27;
   const baseExpenses = Number(profile?.monthly_base_expenses ?? 2400);
 
   const income = useMemo(() => txns.filter((t) => t.kind === "income"), [txns]);
   const expenses = useMemo(() => txns.filter((t) => t.kind === "expense"), [txns]);
-  const totalIncome = income.reduce((s, i) => s + Number(i.amount), 0);
-  const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
+  const upiIn = useMemo(() => upiTxns.filter((u) => u.direction === "credit").reduce((s, u) => s + Number(u.amount), 0), [upiTxns]);
+  const upiOut = useMemo(() => upiTxns.filter((u) => u.direction === "debit").reduce((s, u) => s + Number(u.amount), 0), [upiTxns]);
+  const totalIncome = income.reduce((s, i) => s + Number(i.amount), 0) + upiIn;
+  const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0) + upiOut;
   const netIncome = totalIncome - totalExpenses;
   const setAside = Math.max(0, netIncome * (taxRate / 100));
   const safeToSpend = netIncome - setAside;
@@ -165,15 +168,30 @@ function Dashboard() {
     navigate({ to: "/auth", replace: true });
   }
 
-  const recent = txns.slice(0, 6).map((t) => ({
-    key: t.id,
-    kind: t.kind === "income" ? ("in" as const) : ("out" as const),
-    label: t.label,
-    meta: t.kind === "income" ? fmtDate(t.occurred_at) : (t.category ?? "—"),
-    amount: Number(t.amount),
-  }));
+  const recent = useMemo(() => {
+    const a = txns.map((t) => ({
+      key: t.id,
+      kind: t.kind === "income" ? ("in" as const) : ("out" as const),
+      label: t.label,
+      meta: t.kind === "income" ? fmtDate(t.occurred_at) : (t.category ?? "—"),
+      amount: Number(t.amount),
+      at: t.occurred_at,
+      upi: false,
+    }));
+    const b = upiTxns.map((u) => ({
+      key: `upi-${u.id}`,
+      kind: u.direction === "credit" ? ("in" as const) : ("out" as const),
+      label: u.counterparty,
+      meta: `UPI · ${u.upi_id ?? "—"}`,
+      amount: Number(u.amount),
+      at: u.occurred_at,
+      upi: true,
+    }));
+    return [...a, ...b].sort((x, y) => (x.at < y.at ? 1 : -1)).slice(0, 6);
+  }, [txns, upiTxns]);
 
   const userName = profile?.display_name ?? "there";
+
 
   if (profileQuery.isLoading) {
     return (
