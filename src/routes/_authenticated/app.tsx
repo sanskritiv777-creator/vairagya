@@ -90,6 +90,18 @@ function Dashboard() {
     },
   });
 
+  const upiQuery = useQuery({
+    queryKey: ["upi_transactions"],
+    queryFn: async (): Promise<UpiTxn[]> => {
+      const { data, error } = await supabase
+        .from("upi_transactions" as never)
+        .select("*")
+        .order("occurred_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as UpiTxn[];
+    },
+  });
+
   const addTxn = useMutation({
     mutationFn: async (t: { kind: "income" | "expense"; label: string; amount: number; category?: string }) => {
       const { data: u } = await supabase.auth.getUser();
