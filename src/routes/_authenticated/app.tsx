@@ -917,3 +917,371 @@ function CalculatorPanel() {
     </div>
   );
 }
+
+type UpiCategory = "client_payment" | "personal" | "business_expense" | "refund" | "other";
+type UpiTxn = {
+  id: string;
+  amount: number;
+  direction: "credit" | "debit";
+  counterparty: string;
+  upi_id: string | null;
+  note: string | null;
+  category: UpiCategory;
+  occurred_at: string;
+};
+
+const UPI_CATEGORIES: { value: UpiCategory; label: string }[] = [
+  { value: "client_payment", label: "Client Payment" },
+  { value: "personal", label: "Personal" },
+  { value: "business_expense", label: "Business Expense" },
+  { value: "refund", label: "Refund" },
+  { value: "other", label: "Other" },
+];
+
+function fmtDateTime(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleString("en-IN", { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+// Parse a pasted UPI SMS/notification. Best-effort — supports common templates.
+function parseUpiText(text: string): Partial<UpiTxn> | null {
+  if (!text.trim()) return null;
+  const amtMatch = text.match(/(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d+)?)/i);
+  const amount = amtMatch ? parseFloat(amtMatch[1].replace(/,/g, "")) : NaN;
+  if (!isFinite(amount)) return null;
+
+  const credit = /credited|received|deposited|added/i.test(text);
+  const debit = /debited|paid|sent|spent|withdrawn/i.test(text);
+  const direction: "credit" | "debit" = credit && !debit ? "credit" : "debit";
+
+  const upiMatch = text.match(/([a-zA-Z0-9._-]+@[a-zA-Z]{2,})/);
+  const upi_id = upiMatch ? upiMatch[1] : null;
+
+  const partyMatch =
+    text.match(/(?:to|from|by)\s+([A-Z][A-Za-z0-9 .&'-]{2,40})(?:\s+on|\.|,|$)/) ||
+    text.match(/VPA\s+([a-zA-Z0-9._-]+@[a-zA-Z]{2,})/);
+  const counterparty = partyMatch ? partyMatch[1].trim() : (upi_id ?? "Unknown");
+
+  return { amount, direction, counterparty, upi_id, note: text.slice(0, 200) };
+}
+
+function UpiPanel() {
+  const qc = useQueryClient();
+  const [importText, setImportText] = useState("");
+  const [form, setForm] = useState<{ amount: string; direction: "credit" | "debit"; counterparty: string; upi_id: string; category: UpiCategory; note: string }>({
+    amount: "", direction: "debit", counterparty: "", upi_id: "", category: "other", note: "",
+  });
+
+  const list = useQuery({
+    queryKey: ["upi_transactions"],
+    queryFn: async (): Promise<UpiTxn[]> => {
+      const { data, error } = await supabase
+        .from("upi_transactions" as never)
+        .select("*")
+        .order("occurred_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as UpiTxn[];
+    },
+  });
+
+  const add = useMutation({
+    mutationFn: async (row: Omit<UpiTxn, "id" | "occurred_at"> & { occurred_at?: string }) => {
+      const { data: u } = await supabase.auth.getUser();
+      const { error } = await supabase.from("upi_transactions" as never).insert({
+        user_id: u.user!.id,
+        ...row,
+      } as never);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["upi_transactions"] }),
+  });
+
+  const updateCat = useMutation({
+    mutationFn: async ({ id, category }: { id: string; category: UpiCategory }) => {
+      const { error } = await supabase.from("upi_transactions" as never).update({ category } as never).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["upi_transactions"] }),
+  });
+
+  const del = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("upi_transactions" as never).delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["upi_transactions"] }),
+  });
+
+  function importFromText() {
+    const p = parseUpiText(importText);
+    if (!p) return;
+    add.mutate(
+      {
+        amount: p.amount!,
+        direction: p.direction!,
+        counterparty: p.counterparty!,
+        upi_id: p.upi_id ?? null,
+        note: p.note ?? null,
+        category: "other",
+      },
+      { onSuccess: () => setImportText("") },
+    );
+  }
+
+  function addManual() {
+    const amt = parseFloat(form.amount);
+    if (!isFinite(amt) || !form.counterparty.trim()) return;
+    add.mutate(
+      {
+        amount: amt,
+        direction: form.direction,
+        counterparty: form.counterparty.trim(),
+        upi_id: form.upi_id.trim() || null,
+        note: form.note.trim() || null,
+        category: form.category,
+      },
+      {
+        onSuccess: () => setForm({ amount: "", direction: "debit", counterparty: "", upi_id: "", category: "other", note: "" }),
+      },
+    );
+  }
+
+  const items = list.data ?? [];
+  const totals = items.reduce(
+    (acc, t) => {
+      if (t.direction === "credit") acc.in += Number(t.amount);
+      else acc.out += Number(t.amount);
+      return acc;
+    },
+    { in: 0, out: 0 },
+  );
+
+  return (
+    <div className="space-y-5">
+      <div className="va-balance-card rounded-2xl p-4">
+        <div className="flex items-center gap-2 text-purple-200/80 text-[12px]"><Smartphone size={14} /> UPI activity</div>
+        <div className="flex items-end gap-6 mt-2">
+          <div>
+            <div className="text-[11px] text-purple-200/60">Received</div>
+            <div className="va-display text-xl text-emerald-200">₹{Math.round(totals.in).toLocaleString("en-IN")}</div>
+          </div>
+          <div>
+            <div className="text-[11px] text-purple-200/60">Sent</div>
+            <div className="va-display text-xl text-fuchsia-200">₹{Math.round(totals.out).toLocaleString("en-IN")}</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Import from SMS / notification</div>
+        <div className="va-glass rounded-2xl p-4 space-y-3">
+          <textarea
+            value={importText}
+            onChange={(e) => setImportText(e.target.value)}
+            placeholder="Paste UPI SMS or notification text here…"
+            rows={3}
+            className="va-input w-full rounded-xl px-4 py-3 text-[13px]"
+          />
+          <button
+            onClick={importFromText}
+            disabled={!importText.trim() || add.isPending}
+            className="va-fab w-full rounded-xl py-2.5 text-[13px] font-semibold text-white active:scale-[0.98] transition disabled:opacity-50"
+          >
+            Parse & import
+          </button>
+          <p className="text-[11px] text-purple-200/50">
+            Auto-sync from your UPI app is not yet supported by mobile OSes; paste the alert here and we'll pull out amount, party, and UPI ID.
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Add manually</div>
+        <div className="va-glass rounded-2xl p-4 space-y-3">
+          <div className="flex gap-2">
+            {(["debit", "credit"] as const).map((d) => (
+              <button
+                key={d}
+                onClick={() => setForm({ ...form, direction: d })}
+                className="flex-1 rounded-xl py-2 text-[12.5px]"
+                style={{
+                  background: form.direction === d ? "linear-gradient(135deg,#C084FC,#7C3AED)" : "rgba(168,85,247,0.10)",
+                  border: "1px solid rgba(216,180,254,0.25)",
+                  color: form.direction === d ? "#fff" : "#E9D5FF",
+                }}
+              >
+                {d === "credit" ? "Money in" : "Money out"}
+              </button>
+            ))}
+          </div>
+          <input className="va-input va-mono w-full rounded-xl px-4 py-2.5 text-[14px]" placeholder="Amount ₹" inputMode="decimal" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+          <input className="va-input w-full rounded-xl px-4 py-2.5 text-[13.5px]" placeholder="Sender / Receiver" value={form.counterparty} onChange={(e) => setForm({ ...form, counterparty: e.target.value })} />
+          <input className="va-input va-mono w-full rounded-xl px-4 py-2.5 text-[13px]" placeholder="UPI ID (name@bank)" value={form.upi_id} onChange={(e) => setForm({ ...form, upi_id: e.target.value })} />
+          <div className="flex flex-wrap gap-2">
+            {UPI_CATEGORIES.map((c) => (
+              <button
+                key={c.value}
+                onClick={() => setForm({ ...form, category: c.value })}
+                className="px-3 py-1.5 rounded-full text-[11.5px]"
+                style={{
+                  background: form.category === c.value ? "linear-gradient(135deg,#C084FC,#7C3AED)" : "rgba(168,85,247,0.10)",
+                  border: "1px solid rgba(216,180,254,0.25)",
+                  color: form.category === c.value ? "#fff" : "#E9D5FF",
+                }}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={addManual}
+            disabled={add.isPending || !form.amount || !form.counterparty}
+            className="va-fab w-full rounded-xl py-2.5 text-[13px] font-semibold text-white active:scale-[0.98] transition disabled:opacity-50"
+          >
+            {add.isPending ? <Loader2 size={14} className="inline animate-spin" /> : "Save UPI transaction"}
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">History</div>
+        {list.isLoading ? (
+          <div className="va-glass rounded-2xl p-6 text-center"><Loader2 size={16} className="animate-spin inline text-fuchsia-300" /></div>
+        ) : items.length === 0 ? (
+          <div className="va-glass rounded-2xl p-6 text-center text-[13px] text-purple-200/70">No UPI transactions yet.</div>
+        ) : (
+          <div className="va-glass rounded-2xl divide-y divide-purple-500/10">
+            {items.map((t) => (
+              <div key={t.id} className="px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${t.direction === "credit" ? "bg-emerald-400/15 text-emerald-300" : "bg-fuchsia-400/15 text-fuchsia-300"}`}>
+                    {t.direction === "credit" ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13.5px] text-purple-50 truncate">{t.counterparty}</div>
+                    <div className="text-[11px] text-purple-200/50 truncate">
+                      {t.upi_id ?? "—"} · {fmtDateTime(t.occurred_at)}
+                    </div>
+                  </div>
+                  <div className={`va-mono text-[13px] shrink-0 ${t.direction === "credit" ? "text-emerald-300" : "text-fuchsia-200"}`}>
+                    {t.direction === "credit" ? "+" : "−"}₹{Number(t.amount).toLocaleString("en-IN")}
+                  </div>
+                  <button onClick={() => del.mutate(t.id)} className="ml-1 w-7 h-7 rounded-lg flex items-center justify-center text-purple-200/40 hover:text-rose-300 hover:bg-rose-500/10 transition" aria-label="Delete">
+                    <X size={13} />
+                  </button>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5 pl-12">
+                  {UPI_CATEGORIES.map((c) => (
+                    <button
+                      key={c.value}
+                      onClick={() => updateCat.mutate({ id: t.id, category: c.value })}
+                      className="px-2.5 py-1 rounded-full text-[10.5px] transition"
+                      style={{
+                        background: t.category === c.value ? "linear-gradient(135deg,#C084FC,#7C3AED)" : "rgba(168,85,247,0.08)",
+                        border: "1px solid rgba(216,180,254,0.18)",
+                        color: t.category === c.value ? "#fff" : "#DDD6FE",
+                      }}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AIInsightsPanel() {
+  const run = useServerFn(generateInsights);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [insights, setInsights] = useState<{ title: string; body: string; tone: "positive" | "neutral" | "warning" }[]>([]);
+  const [lastRun, setLastRun] = useState<string | null>(null);
+
+  async function refresh() {
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await run({ data: undefined as never });
+      setInsights(r.insights);
+      setLastRun(new Date().toLocaleTimeString());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to generate insights");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  return (
+    <div className="space-y-5">
+      <div className="va-balance-card rounded-2xl p-4 flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+          <Brain size={18} className="text-fuchsia-100" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="va-display text-lg text-white">Your money, analyzed</div>
+          <div className="text-[12px] text-purple-100/70 mt-0.5">
+            AI reviews your ledger + UPI activity and surfaces patterns.
+          </div>
+        </div>
+        <button
+          onClick={refresh}
+          disabled={loading}
+          className="w-9 h-9 rounded-xl va-glass flex items-center justify-center shrink-0 disabled:opacity-50"
+          aria-label="Refresh insights"
+        >
+          {loading ? <Loader2 size={15} className="animate-spin text-fuchsia-200" /> : <RefreshCw size={15} className="text-fuchsia-200" />}
+        </button>
+      </div>
+
+      {error && (
+        <div className="va-glass rounded-2xl p-4 flex items-start gap-3 border border-rose-400/30">
+          <AlertTriangle size={16} className="text-rose-300 shrink-0 mt-0.5" />
+          <div className="text-[12.5px] text-rose-100/90 break-words">{error}</div>
+        </div>
+      )}
+
+      {loading && insights.length === 0 ? (
+        <div className="va-glass rounded-2xl p-8 text-center">
+          <Loader2 size={20} className="animate-spin inline text-fuchsia-300" />
+          <div className="text-[12.5px] text-purple-200/70 mt-3">Reading your patterns…</div>
+        </div>
+      ) : insights.length === 0 && !error ? (
+        <div className="va-glass rounded-2xl p-6 text-center text-[13px] text-purple-200/70">
+          Add a few transactions, then hit refresh.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {insights.map((ins, i) => {
+            const toneStyle =
+              ins.tone === "positive" ? { color: "#6EE7B7", bg: "bg-emerald-400/15", Icon: TrendingUp } :
+              ins.tone === "warning" ? { color: "#FCA5A5", bg: "bg-rose-400/15", Icon: AlertTriangle } :
+              { color: "#F0ABFC", bg: "bg-fuchsia-400/15", Icon: Sparkles };
+            const Icon = toneStyle.Icon;
+            return (
+              <div key={i} className="va-glass rounded-2xl p-4 flex gap-3">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${toneStyle.bg}`}>
+                  <Icon size={16} style={{ color: toneStyle.color }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13.5px] text-white font-medium">{ins.title}</div>
+                  <div className="text-[12.5px] text-purple-100/75 mt-1 leading-relaxed">{ins.body}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {lastRun && (
+        <div className="text-[11px] text-purple-200/40 text-center">Last updated {lastRun}</div>
+      )}
+    </div>
+  );
+}
