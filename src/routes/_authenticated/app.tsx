@@ -90,6 +90,18 @@ function Dashboard() {
     },
   });
 
+  const upiQuery = useQuery({
+    queryKey: ["upi_transactions"],
+    queryFn: async (): Promise<UpiTxn[]> => {
+      const { data, error } = await supabase
+        .from("upi_transactions" as never)
+        .select("*")
+        .order("occurred_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as UpiTxn[];
+    },
+  });
+
   const addTxn = useMutation({
     mutationFn: async (t: { kind: "income" | "expense"; label: string; amount: number; category?: string }) => {
       const { data: u } = await supabase.auth.getUser();
@@ -124,13 +136,16 @@ function Dashboard() {
 
   const profile = profileQuery.data;
   const txns = txnsQuery.data ?? [];
+  const upiTxns = upiQuery.data ?? [];
   const taxRate = profile?.tax_rate ?? 27;
   const baseExpenses = Number(profile?.monthly_base_expenses ?? 2400);
 
   const income = useMemo(() => txns.filter((t) => t.kind === "income"), [txns]);
   const expenses = useMemo(() => txns.filter((t) => t.kind === "expense"), [txns]);
-  const totalIncome = income.reduce((s, i) => s + Number(i.amount), 0);
-  const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
+  const upiIn = useMemo(() => upiTxns.filter((u) => u.direction === "credit").reduce((s, u) => s + Number(u.amount), 0), [upiTxns]);
+  const upiOut = useMemo(() => upiTxns.filter((u) => u.direction === "debit").reduce((s, u) => s + Number(u.amount), 0), [upiTxns]);
+  const totalIncome = income.reduce((s, i) => s + Number(i.amount), 0) + upiIn;
+  const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0) + upiOut;
   const netIncome = totalIncome - totalExpenses;
   const setAside = Math.max(0, netIncome * (taxRate / 100));
   const safeToSpend = netIncome - setAside;
@@ -153,15 +168,30 @@ function Dashboard() {
     navigate({ to: "/auth", replace: true });
   }
 
-  const recent = txns.slice(0, 6).map((t) => ({
-    key: t.id,
-    kind: t.kind === "income" ? ("in" as const) : ("out" as const),
-    label: t.label,
-    meta: t.kind === "income" ? fmtDate(t.occurred_at) : (t.category ?? "—"),
-    amount: Number(t.amount),
-  }));
+  const recent = useMemo(() => {
+    const a = txns.map((t) => ({
+      key: t.id,
+      kind: t.kind === "income" ? ("in" as const) : ("out" as const),
+      label: t.label,
+      meta: t.kind === "income" ? fmtDate(t.occurred_at) : (t.category ?? "—"),
+      amount: Number(t.amount),
+      at: t.occurred_at,
+      upi: false,
+    }));
+    const b = upiTxns.map((u) => ({
+      key: `upi-${u.id}`,
+      kind: u.direction === "credit" ? ("in" as const) : ("out" as const),
+      label: u.counterparty,
+      meta: `UPI · ${u.upi_id ?? "—"}`,
+      amount: Number(u.amount),
+      at: u.occurred_at,
+      upi: true,
+    }));
+    return [...a, ...b].sort((x, y) => (x.at < y.at ? 1 : -1)).slice(0, 6);
+  }, [txns, upiTxns]);
 
   const userName = profile?.display_name ?? "there";
+
 
   if (profileQuery.isLoading) {
     return (
@@ -225,6 +255,29 @@ function Dashboard() {
           </p>
         </div>
 
+        <div className="px-6 mt-5">
+          <HomeAIInsights onOpen={() => setTab("ai")} />
+        </div>
+
+        <div className="px-6 mt-4">
+          <button
+            onClick={() => setTab("upi")}
+            className="va-glass w-full rounded-2xl p-4 flex items-center gap-3 active:scale-[0.99] transition text-left"
+          >
+            <div className="w-10 h-10 rounded-xl bg-fuchsia-400/15 text-fuchsia-200 flex items-center justify-center shrink-0">
+              <Smartphone size={17} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13.5px] text-purple-50">UPI transactions</div>
+              <div className="text-[11px] text-purple-200/60 truncate">
+                +₹{Math.round(upiIn).toLocaleString("en-IN")} in · −₹{Math.round(upiOut).toLocaleString("en-IN")} out · counted in totals
+              </div>
+            </div>
+            <ChevronRight size={14} className="text-purple-300/60" />
+          </button>
+        </div>
+
+
         <div className="px-6 mt-6">
           <div className="va-balance-card rounded-3xl p-5 relative overflow-hidden">
             <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-fuchsia-400/30 blur-3xl va-ring" />
@@ -283,8 +336,11 @@ function Dashboard() {
                     {r.kind === "in" ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13.5px] text-purple-50 truncate">{r.label}</div>
-                    <div className="text-[11px] text-purple-200/50">{r.meta}</div>
+                    <div className="text-[13.5px] text-purple-50 truncate flex items-center gap-1.5">
+                      {r.label}
+                      {r.upi && <span className="text-[9px] px-1.5 py-0.5 rounded bg-fuchsia-500/20 text-fuchsia-200 tracking-wide">UPI</span>}
+                    </div>
+                    <div className="text-[11px] text-purple-200/50 truncate">{r.meta}</div>
                   </div>
                   <div className={`va-mono text-[13px] shrink-0 ${r.kind === "in" ? "text-emerald-300" : "text-fuchsia-200"}`}>
                     {r.kind === "in" ? "+" : "−"}{currency(r.amount)}
@@ -1058,6 +1114,14 @@ function UpiPanel() {
 
   return (
     <div className="space-y-5">
+      <div className="va-glass rounded-2xl p-3.5 flex items-start gap-2.5 border border-emerald-400/25">
+        <div className="w-7 h-7 rounded-lg bg-emerald-400/15 text-emerald-300 flex items-center justify-center shrink-0">
+          <Sparkles size={13} />
+        </div>
+        <div className="text-[11.5px] leading-relaxed text-purple-100/80">
+          <span className="text-emerald-200 font-medium">Safe by design.</span> Varaigya never asks for your UPI PIN, bank login, or OTP. Entries stay in your private account — only you can see them.
+        </div>
+      </div>
       <div className="va-balance-card rounded-2xl p-4">
         <div className="flex items-center gap-2 text-purple-200/80 text-[12px]"><Smartphone size={14} /> UPI activity</div>
         <div className="flex items-end gap-6 mt-2">
@@ -1283,5 +1347,67 @@ function AIInsightsPanel() {
         <div className="text-[11px] text-purple-200/40 text-center">Last updated {lastRun}</div>
       )}
     </div>
+  );
+}
+
+function HomeAIInsights({ onOpen }: { onOpen: () => void }) {
+  const run = useServerFn(generateInsights);
+  const [loading, setLoading] = useState(true);
+  const [top, setTop] = useState<{ title: string; body: string; tone: "positive" | "neutral" | "warning" } | null>(null);
+  const [count, setCount] = useState(0);
+
+  async function refresh() {
+    setLoading(true);
+    try {
+      const r = await run({ data: undefined as never });
+      setTop(r.insights[0] ?? null);
+      setCount(r.insights.length);
+    } catch {
+      setTop(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  const toneColor =
+    top?.tone === "positive" ? "#6EE7B7" :
+    top?.tone === "warning" ? "#FCA5A5" :
+    "#F0ABFC";
+
+  return (
+    <button
+      onClick={onOpen}
+      className="w-full text-left rounded-2xl p-4 relative overflow-hidden active:scale-[0.99] transition"
+      style={{
+        background: "linear-gradient(135deg, rgba(168,85,247,0.22), rgba(34,211,238,0.10))",
+        border: "1px solid rgba(216,180,254,0.28)",
+        boxShadow: "0 20px 40px -24px rgba(168,85,247,0.6)",
+      }}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center">
+          <Brain size={14} className="text-fuchsia-100" />
+        </div>
+        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-100/80">AI insights</div>
+        <div className="ml-auto flex items-center gap-1 text-[11px] text-purple-100/70">
+          {loading ? <Loader2 size={12} className="animate-spin" /> : count > 1 ? `+${count - 1} more` : "Tap to open"}
+          <ChevronRight size={12} />
+        </div>
+      </div>
+      {loading && !top ? (
+        <div className="text-[13px] text-purple-100/70">Reading your patterns…</div>
+      ) : top ? (
+        <>
+          <div className="text-[13.5px] text-white font-medium leading-snug">{top.title}</div>
+          <div className="text-[12px] text-purple-100/75 mt-1 leading-relaxed line-clamp-2" style={{ color: toneColor + "cc" }}>
+            {top.body}
+          </div>
+        </>
+      ) : (
+        <div className="text-[13px] text-purple-100/70">Add a few transactions to unlock insights.</div>
+      )}
+    </button>
   );
 }
