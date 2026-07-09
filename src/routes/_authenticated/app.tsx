@@ -1114,6 +1114,14 @@ function UpiPanel() {
 
   return (
     <div className="space-y-5">
+      <div className="va-glass rounded-2xl p-3.5 flex items-start gap-2.5 border border-emerald-400/25">
+        <div className="w-7 h-7 rounded-lg bg-emerald-400/15 text-emerald-300 flex items-center justify-center shrink-0">
+          <Sparkles size={13} />
+        </div>
+        <div className="text-[11.5px] leading-relaxed text-purple-100/80">
+          <span className="text-emerald-200 font-medium">Safe by design.</span> Varaigya never asks for your UPI PIN, bank login, or OTP. Entries stay in your private account — only you can see them.
+        </div>
+      </div>
       <div className="va-balance-card rounded-2xl p-4">
         <div className="flex items-center gap-2 text-purple-200/80 text-[12px]"><Smartphone size={14} /> UPI activity</div>
         <div className="flex items-end gap-6 mt-2">
