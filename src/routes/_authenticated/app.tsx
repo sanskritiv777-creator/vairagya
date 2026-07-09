@@ -141,7 +141,7 @@ function Dashboard() {
   const nextDue = dueDates.find((d) => new Date(d) >= today) || dueDates[0];
   const daysUntilDue = Math.ceil((new Date(nextDue).getTime() - today.getTime()) / 86400000);
 
-  const [tab, setTab] = useState<"home" | "ledger" | "expenses" | "profile" | "insights" | "reminders" | "calc">("home");
+  const [tab, setTab] = useState<"home" | "ledger" | "expenses" | "profile" | "insights" | "reminders" | "calc" | "upi" | "ai">("home");
   const [sheet, setSheet] = useState<null | "income" | "expense" | "menu">(null);
   const [newIncome, setNewIncome] = useState({ source: "", amount: "" });
   const [newExpense, setNewExpense] = useState({ label: "", amount: "", category: "Software" });
