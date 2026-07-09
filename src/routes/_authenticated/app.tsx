@@ -1341,3 +1341,65 @@ function AIInsightsPanel() {
     </div>
   );
 }
+
+function HomeAIInsights({ onOpen }: { onOpen: () => void }) {
+  const run = useServerFn(generateInsights);
+  const [loading, setLoading] = useState(true);
+  const [top, setTop] = useState<{ title: string; body: string; tone: "positive" | "neutral" | "warning" } | null>(null);
+  const [count, setCount] = useState(0);
+
+  async function refresh() {
+    setLoading(true);
+    try {
+      const r = await run({ data: undefined as never });
+      setTop(r.insights[0] ?? null);
+      setCount(r.insights.length);
+    } catch {
+      setTop(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  const toneColor =
+    top?.tone === "positive" ? "#6EE7B7" :
+    top?.tone === "warning" ? "#FCA5A5" :
+    "#F0ABFC";
+
+  return (
+    <button
+      onClick={onOpen}
+      className="w-full text-left rounded-2xl p-4 relative overflow-hidden active:scale-[0.99] transition"
+      style={{
+        background: "linear-gradient(135deg, rgba(168,85,247,0.22), rgba(34,211,238,0.10))",
+        border: "1px solid rgba(216,180,254,0.28)",
+        boxShadow: "0 20px 40px -24px rgba(168,85,247,0.6)",
+      }}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center">
+          <Brain size={14} className="text-fuchsia-100" />
+        </div>
+        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-100/80">AI insights</div>
+        <div className="ml-auto flex items-center gap-1 text-[11px] text-purple-100/70">
+          {loading ? <Loader2 size={12} className="animate-spin" /> : count > 1 ? `+${count - 1} more` : "Tap to open"}
+          <ChevronRight size={12} />
+        </div>
+      </div>
+      {loading && !top ? (
+        <div className="text-[13px] text-purple-100/70">Reading your patterns…</div>
+      ) : top ? (
+        <>
+          <div className="text-[13.5px] text-white font-medium leading-snug">{top.title}</div>
+          <div className="text-[12px] text-purple-100/75 mt-1 leading-relaxed line-clamp-2" style={{ color: toneColor + "cc" }}>
+            {top.body}
+          </div>
+        </>
+      ) : (
+        <div className="text-[13px] text-purple-100/70">Add a few transactions to unlock insights.</div>
+      )}
+    </button>
+  );
+}
