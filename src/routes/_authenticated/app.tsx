@@ -188,7 +188,7 @@ function Dashboard() {
       at: u.occurred_at,
       upi: true,
     }));
-    return [...a, ...b].sort((x, y) => (x.at < y.at ? 1 : -1)).slice(0, 6);
+    return [...a, ...b].sort((x, y) => (x.at < y.at ? 1 : -1));
   }, [txns, upiTxns]);
 
   const userName = profile?.display_name ?? "there";
