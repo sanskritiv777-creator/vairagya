@@ -157,9 +157,10 @@ function Dashboard() {
   const daysUntilDue = Math.ceil((new Date(nextDue).getTime() - today.getTime()) / 86400000);
 
   const [tab, setTab] = useState<"home" | "ledger" | "expenses" | "profile" | "insights" | "reminders" | "calc" | "upi" | "ai">("home");
-  const [sheet, setSheet] = useState<null | "income" | "expense" | "menu">(null);
+  const [sheet, setSheet] = useState<null | "income" | "expense" | "transfer" | "menu" | "add">(null);
   const [newIncome, setNewIncome] = useState({ source: "", amount: "" });
   const [newExpense, setNewExpense] = useState({ label: "", amount: "", category: "Software" });
+  const [newTransfer, setNewTransfer] = useState({ label: "", amount: "" });
 
   async function signOut() {
     await qc.cancelQueries();
@@ -187,7 +188,7 @@ function Dashboard() {
       at: u.occurred_at,
       upi: true,
     }));
-    return [...a, ...b].sort((x, y) => (x.at < y.at ? 1 : -1)).slice(0, 6);
+    return [...a, ...b].sort((x, y) => (x.at < y.at ? 1 : -1));
   }, [txns, upiTxns]);
 
   const userName = profile?.display_name ?? "there";
@@ -261,30 +262,8 @@ function Dashboard() {
           </p>
         </div>
 
-        <div className="px-6 mt-5">
-          <HomeAIInsights onOpen={() => setTab("ai")} />
-        </div>
-
-        <div className="px-6 mt-4">
-          <button
-            onClick={() => setTab("upi")}
-            className="va-glass w-full rounded-2xl p-4 flex items-center gap-3 active:scale-[0.99] transition text-left"
-          >
-            <div className="w-10 h-10 rounded-xl bg-fuchsia-400/15 text-fuchsia-200 flex items-center justify-center shrink-0">
-              <Smartphone size={17} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[13.5px] text-purple-50">UPI transactions</div>
-              <div className="text-[11px] text-purple-200/60 truncate">
-                +₹{Math.round(upiIn).toLocaleString("en-IN")} in · −₹{Math.round(upiOut).toLocaleString("en-IN")} out · counted in totals
-              </div>
-            </div>
-            <ChevronRight size={14} className="text-purple-300/60" />
-          </button>
-        </div>
-
-
         <div className="px-6 mt-6">
+
           <div className="va-balance-card rounded-3xl p-5 relative overflow-hidden">
             <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-fuchsia-400/30 blur-3xl va-ring" />
             <div className="flex items-center justify-between relative gap-3">
@@ -322,16 +301,35 @@ function Dashboard() {
         <div className="px-6 mt-7">
           <div className="flex items-center justify-between mb-3">
             <h2 className="va-display text-[17px]">Transactions</h2>
-            <button onClick={() => setTab("ledger")} className="text-[12px] text-fuchsia-300 flex items-center gap-0.5">
-              See all <ChevronRight size={14} />
-            </button>
+            {recent.length > 8 && (
+              <span className="text-[11px] text-purple-200/50">{recent.length} total</span>
+            )}
           </div>
+
+          {upiTxns.length === 0 && (
+            <button
+              onClick={() => setTab("upi")}
+              className="w-full mb-3 rounded-2xl px-4 py-3 flex items-center gap-3 text-left active:scale-[0.99] transition"
+              style={{
+                background: "linear-gradient(135deg, rgba(168,85,247,0.14), rgba(34,211,238,0.06))",
+                border: "1px dashed rgba(216,180,254,0.35)",
+              }}
+            >
+              <div className="w-8 h-8 rounded-lg bg-fuchsia-400/15 text-fuchsia-200 flex items-center justify-center shrink-0">
+                <Smartphone size={14} />
+              </div>
+              <p className="text-[12.5px] leading-snug text-purple-100/85 flex-1">
+                Connect your UPI to automatically import your transactions.
+              </p>
+              <ChevronRight size={14} className="text-purple-300/60" />
+            </button>
+          )}
 
           {recent.length === 0 ? (
             <div className="va-glass rounded-2xl p-6 text-center">
               <p className="text-[13px] text-purple-200/70">No transactions yet.</p>
-              <button onClick={() => setSheet("income")} className="mt-3 text-[12.5px] text-fuchsia-300">
-                Log your first income →
+              <button onClick={() => setSheet("add")} className="mt-3 text-[12.5px] text-fuchsia-300">
+                Add your first transaction →
               </button>
             </div>
           ) : (
@@ -346,7 +344,7 @@ function Dashboard() {
                       {r.label}
                       {r.upi && <span className="text-[9px] px-1.5 py-0.5 rounded bg-fuchsia-500/20 text-fuchsia-200 tracking-wide">UPI</span>}
                     </div>
-                    <div className="text-[11px] text-purple-200/50 truncate">{r.meta}</div>
+                    <div className="text-[11px] text-purple-200/50 truncate">{fmtDate(r.at)} · {r.meta}</div>
                   </div>
                   <div className={`va-mono text-[13px] shrink-0 ${r.kind === "in" ? "text-emerald-300" : "text-fuchsia-200"}`}>
                     {r.kind === "in" ? "+" : "−"}{currency(r.amount)}
@@ -356,6 +354,7 @@ function Dashboard() {
             </div>
           )}
         </div>
+
 
         <div className="px-6 mt-5">
           <div className="va-glass rounded-2xl p-4 flex items-start gap-3">
@@ -372,7 +371,7 @@ function Dashboard() {
           <div className="va-dock rounded-full px-3 py-2 flex items-center justify-between">
             <DockBtn icon={Home} active={tab === "home"} onClick={() => setTab("home")} />
             <DockBtn icon={Receipt} active={tab === "ledger"} onClick={() => setTab("ledger")} />
-            <button onClick={() => setSheet("income")} className="va-fab w-14 h-14 rounded-full flex items-center justify-center -mt-8 active:scale-95 transition" aria-label="Add">
+            <button onClick={() => setSheet("add")} className="va-fab w-14 h-14 rounded-full flex items-center justify-center -mt-8 active:scale-95 transition" aria-label="Add">
               <Plus size={24} className="text-white" />
             </button>
             <DockBtn icon={PieChart} active={tab === "expenses"} onClick={() => setTab("expenses")} />
@@ -484,6 +483,52 @@ function Dashboard() {
             </button>
           </BottomSheet>
         )}
+
+        {sheet === "transfer" && (
+          <BottomSheet title="Log transfer" onClose={() => setSheet(null)}>
+            <p className="text-[12px] text-purple-200/60 -mt-1">Move money between your own accounts. Doesn't affect income or expenses.</p>
+            <input className="va-input w-full rounded-xl px-4 py-3 text-[14px]" placeholder="From → To (e.g. Bank → UPI)" value={newTransfer.label} onChange={(e) => setNewTransfer({ ...newTransfer, label: e.target.value })} />
+            <input className="va-input va-mono w-full rounded-xl px-4 py-3 text-[14px]" placeholder="Amount" type="number" inputMode="decimal" value={newTransfer.amount} onChange={(e) => setNewTransfer({ ...newTransfer, amount: e.target.value })} />
+            <button
+              disabled={addTxn.isPending || !newTransfer.label || !newTransfer.amount}
+              onClick={() => {
+                addTxn.mutate(
+                  { kind: "expense", label: newTransfer.label, amount: parseFloat(newTransfer.amount), category: "Transfer" },
+                  { onSuccess: () => { setNewTransfer({ label: "", amount: "" }); setSheet(null); } },
+                );
+              }}
+              className="va-fab w-full rounded-xl py-3 text-[14px] font-semibold text-white active:scale-[0.98] transition disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {addTxn.isPending ? <Loader2 size={16} className="animate-spin" /> : "Log transfer"}
+            </button>
+          </BottomSheet>
+        )}
+
+        {sheet === "add" && (
+          <BottomSheet title="Add transaction" onClose={() => setSheet(null)}>
+            {[
+              { key: "income" as const, icon: ArrowDownLeft, label: "Add Income", desc: "Client payment, salary, refund", color: "text-emerald-300", bg: "bg-emerald-400/15" },
+              { key: "expense" as const, icon: ArrowUpRight, label: "Add Expense", desc: "Software, meals, travel, tools", color: "text-fuchsia-300", bg: "bg-fuchsia-400/15" },
+              { key: "transfer" as const, icon: RefreshCw, label: "Add Transfer", desc: "Between your own accounts", color: "text-cyan-300", bg: "bg-cyan-400/15" },
+            ].map((o) => (
+              <button
+                key={o.key}
+                onClick={() => setSheet(o.key)}
+                className="va-glass rounded-2xl px-4 py-3.5 flex items-center gap-3 w-full text-left active:scale-[0.99] transition"
+              >
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${o.bg} ${o.color}`}>
+                  <o.icon size={17} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[14px] text-purple-50">{o.label}</div>
+                  <div className="text-[11.5px] text-purple-200/60 truncate">{o.desc}</div>
+                </div>
+                <ChevronRight size={14} className="text-purple-300/60" />
+              </button>
+            ))}
+          </BottomSheet>
+        )}
+
 
         {sheet === "menu" && (
           <BottomSheet title="Quick menu" onClose={() => setSheet(null)}>
