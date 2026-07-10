@@ -484,6 +484,52 @@ function Dashboard() {
           </BottomSheet>
         )}
 
+        {sheet === "transfer" && (
+          <BottomSheet title="Log transfer" onClose={() => setSheet(null)}>
+            <p className="text-[12px] text-purple-200/60 -mt-1">Move money between your own accounts. Doesn't affect income or expenses.</p>
+            <input className="va-input w-full rounded-xl px-4 py-3 text-[14px]" placeholder="From → To (e.g. Bank → UPI)" value={newTransfer.label} onChange={(e) => setNewTransfer({ ...newTransfer, label: e.target.value })} />
+            <input className="va-input va-mono w-full rounded-xl px-4 py-3 text-[14px]" placeholder="Amount" type="number" inputMode="decimal" value={newTransfer.amount} onChange={(e) => setNewTransfer({ ...newTransfer, amount: e.target.value })} />
+            <button
+              disabled={addTxn.isPending || !newTransfer.label || !newTransfer.amount}
+              onClick={() => {
+                addTxn.mutate(
+                  { kind: "expense", label: newTransfer.label, amount: parseFloat(newTransfer.amount), category: "Transfer" },
+                  { onSuccess: () => { setNewTransfer({ label: "", amount: "" }); setSheet(null); } },
+                );
+              }}
+              className="va-fab w-full rounded-xl py-3 text-[14px] font-semibold text-white active:scale-[0.98] transition disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {addTxn.isPending ? <Loader2 size={16} className="animate-spin" /> : "Log transfer"}
+            </button>
+          </BottomSheet>
+        )}
+
+        {sheet === "add" && (
+          <BottomSheet title="Add transaction" onClose={() => setSheet(null)}>
+            {[
+              { key: "income" as const, icon: ArrowDownLeft, label: "Add Income", desc: "Client payment, salary, refund", color: "text-emerald-300", bg: "bg-emerald-400/15" },
+              { key: "expense" as const, icon: ArrowUpRight, label: "Add Expense", desc: "Software, meals, travel, tools", color: "text-fuchsia-300", bg: "bg-fuchsia-400/15" },
+              { key: "transfer" as const, icon: RefreshCw, label: "Add Transfer", desc: "Between your own accounts", color: "text-cyan-300", bg: "bg-cyan-400/15" },
+            ].map((o) => (
+              <button
+                key={o.key}
+                onClick={() => setSheet(o.key)}
+                className="va-glass rounded-2xl px-4 py-3.5 flex items-center gap-3 w-full text-left active:scale-[0.99] transition"
+              >
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${o.bg} ${o.color}`}>
+                  <o.icon size={17} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[14px] text-purple-50">{o.label}</div>
+                  <div className="text-[11.5px] text-purple-200/60 truncate">{o.desc}</div>
+                </div>
+                <ChevronRight size={14} className="text-purple-300/60" />
+              </button>
+            ))}
+          </BottomSheet>
+        )}
+
+
         {sheet === "menu" && (
           <BottomSheet title="Quick menu" onClose={() => setSheet(null)}>
             {[
