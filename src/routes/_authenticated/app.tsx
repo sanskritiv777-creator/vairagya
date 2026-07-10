@@ -262,30 +262,8 @@ function Dashboard() {
           </p>
         </div>
 
-        <div className="px-6 mt-5">
-          <HomeAIInsights onOpen={() => setTab("ai")} />
-        </div>
-
-        <div className="px-6 mt-4">
-          <button
-            onClick={() => setTab("upi")}
-            className="va-glass w-full rounded-2xl p-4 flex items-center gap-3 active:scale-[0.99] transition text-left"
-          >
-            <div className="w-10 h-10 rounded-xl bg-fuchsia-400/15 text-fuchsia-200 flex items-center justify-center shrink-0">
-              <Smartphone size={17} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[13.5px] text-purple-50">UPI transactions</div>
-              <div className="text-[11px] text-purple-200/60 truncate">
-                +₹{Math.round(upiIn).toLocaleString("en-IN")} in · −₹{Math.round(upiOut).toLocaleString("en-IN")} out · counted in totals
-              </div>
-            </div>
-            <ChevronRight size={14} className="text-purple-300/60" />
-          </button>
-        </div>
-
-
         <div className="px-6 mt-6">
+
           <div className="va-balance-card rounded-3xl p-5 relative overflow-hidden">
             <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-fuchsia-400/30 blur-3xl va-ring" />
             <div className="flex items-center justify-between relative gap-3">
