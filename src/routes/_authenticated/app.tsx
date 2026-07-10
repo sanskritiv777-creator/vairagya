@@ -371,7 +371,7 @@ function Dashboard() {
           <div className="va-dock rounded-full px-3 py-2 flex items-center justify-between">
             <DockBtn icon={Home} active={tab === "home"} onClick={() => setTab("home")} />
             <DockBtn icon={Receipt} active={tab === "ledger"} onClick={() => setTab("ledger")} />
-            <button onClick={() => setSheet("income")} className="va-fab w-14 h-14 rounded-full flex items-center justify-center -mt-8 active:scale-95 transition" aria-label="Add">
+            <button onClick={() => setSheet("add")} className="va-fab w-14 h-14 rounded-full flex items-center justify-center -mt-8 active:scale-95 transition" aria-label="Add">
               <Plus size={24} className="text-white" />
             </button>
             <DockBtn icon={PieChart} active={tab === "expenses"} onClick={() => setTab("expenses")} />
