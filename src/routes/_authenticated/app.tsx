@@ -1156,7 +1156,7 @@ async function tryReadNativeSms(): Promise<string | null> {
 
 function UpiPanel() {
   const qc = useQueryClient();
-  const [importText] = useState(""); void importText;
+  
   const [form, setForm] = useState<{ amount: string; direction: "credit" | "debit"; counterparty: string; upi_id: string; category: UpiCategory; note: string }>({
     amount: "", direction: "debit", counterparty: "", upi_id: "", category: "other", note: "",
   });
