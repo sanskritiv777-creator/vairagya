@@ -1072,6 +1072,88 @@ function parseUpiText(text: string): Partial<UpiTxn> | null {
   return { amount, direction, counterparty, upi_id, note: text.slice(0, 200) };
 }
 
+// ---------- Bulk SMS import ----------
+type ParsedSms = {
+  amount: number;
+  direction: "credit" | "debit";
+  counterparty: string;
+  upi_id: string | null;
+  occurred_at: string;
+  raw: string;
+  hash: string;
+};
+
+const BANK_SENDERS = /\b(?:HDFC|ICICI|SBI|AXIS|KOTAK|PNB|BOI|IDBI|YES|IDFC|RBL|BOB|CANARA|UNION|INDIAN|CENTBK|CBIN|SBIINB|SBIUPI|PAYTM|PHONEPE|GPAY|BHIMUPI)\b/i;
+
+function hashOf(direction: string, amount: number, counterparty: string, iso: string) {
+  const minuteIso = new Date(Math.floor(new Date(iso).getTime() / 60000) * 60000).toISOString();
+  return `${direction}|${amount.toFixed(2)}|${counterparty.toLowerCase().replace(/\s+/g, "")}|${minuteIso}`;
+}
+
+function parseSmsBatch(dump: string): ParsedSms[] {
+  if (!dump.trim()) return [];
+  const chunks = dump
+    .split(/\n\s*\n|(?=(?:^|\n)[A-Z]{2}-)|(?=(?:^|\n)\s*(?:HDFC|ICICI|SBI|AXIS|KOTAK|PNB|IDFC|YES|RBL|BOB|CANARA|UNION|PAYTM|PHONEPE|GPAY)[:\s-])/i)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 12);
+
+  const out: ParsedSms[] = [];
+  for (const chunk of chunks) {
+    const p = parseUpiText(chunk);
+    if (!p || !p.amount || !isFinite(p.amount)) continue;
+
+    let occurred = new Date();
+    const dateMatch =
+      chunk.match(/on\s+(\d{1,2}[-\/\s][A-Za-z0-9]{2,4}[-\/\s]\d{2,4})(?:[\s,]+(?:at\s+)?(\d{1,2}[:.]\d{2}(?:\s*[AP]M)?))?/i) ||
+      chunk.match(/(\d{1,2}[-\/][A-Za-z]{3}[-\/]?\d{2,4})/);
+    if (dateMatch) {
+      const raw = dateMatch[1] + (dateMatch[2] ? " " + dateMatch[2].replace(".", ":") : "");
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) occurred = d;
+    }
+
+    const amount = p.amount;
+    const counterparty = (p.counterparty ?? "Unknown").trim();
+    const direction = p.direction ?? "debit";
+    const iso = occurred.toISOString();
+    out.push({
+      amount, direction, counterparty,
+      upi_id: p.upi_id ?? null,
+      occurred_at: iso,
+      raw: chunk.slice(0, 300),
+      hash: hashOf(direction, amount, counterparty, iso),
+    });
+  }
+  return out;
+}
+
+async function tryReadNativeSms(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  const w = window as unknown as { Capacitor?: { isNativePlatform?: () => boolean; Plugins?: Record<string, unknown> } };
+  const cap = w.Capacitor;
+  if (!cap?.isNativePlatform?.()) return null;
+  try {
+    const plugin = (cap.Plugins?.SmsInbox ?? cap.Plugins?.SMSInboxReader) as
+      | { checkPermissions?: () => Promise<{ sms?: string }>; requestPermissions?: () => Promise<{ sms?: string }>; getSmsList?: (opts: unknown) => Promise<{ smsList?: Array<{ address?: string; body?: string }> }> }
+      | undefined;
+    if (!plugin?.getSmsList) return null;
+    const perm = await plugin.checkPermissions?.();
+    if (perm && perm.sms !== "granted") {
+      const req = await plugin.requestPermissions?.();
+      if (req?.sms !== "granted") return null;
+    }
+    const since = Date.now() - 90 * 24 * 60 * 60 * 1000;
+    const res = await plugin.getSmsList({ filter: { minDate: since, maxCount: 500 } });
+    const list = res?.smsList ?? [];
+    return list
+      .filter((m) => BANK_SENDERS.test(m.address ?? "") || /credited|debited|paid|received|txn|upi|imps|neft/i.test(m.body ?? ""))
+      .map((m) => `${m.address ?? ""}: ${m.body ?? ""}`)
+      .join("\n\n");
+  } catch {
+    return null;
+  }
+}
+
 function UpiPanel() {
   const qc = useQueryClient();
   const [importText, setImportText] = useState("");
@@ -1188,27 +1270,30 @@ function UpiPanel() {
       </div>
 
       <div>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Import from SMS / notification</div>
+        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Auto import via SMS</div>
+        <SmsConnectCard existing={items} onImported={() => qc.invalidateQueries({ queryKey: ["upi_transactions"] })} />
+      </div>
+
+      <div>
+        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Quick add from one SMS</div>
         <div className="va-glass rounded-2xl p-4 space-y-3">
           <textarea
             value={importText}
             onChange={(e) => setImportText(e.target.value)}
-            placeholder="Paste UPI SMS or notification text here…"
+            placeholder="Paste a single UPI SMS or notification here…"
             rows={3}
             className="va-input w-full rounded-xl px-4 py-3 text-[13px]"
           />
           <button
             onClick={importFromText}
             disabled={!importText.trim() || add.isPending}
-            className="va-fab w-full rounded-xl py-2.5 text-[13px] font-semibold text-white active:scale-[0.98] transition disabled:opacity-50"
+            className="va-input w-full rounded-xl py-2.5 text-[13px] font-medium text-purple-100 active:scale-[0.98] transition disabled:opacity-50"
           >
-            Parse & import
+            Parse & import one
           </button>
-          <p className="text-[11px] text-purple-200/50">
-            Auto-sync from your UPI app is not yet supported by mobile OSes; paste the alert here and we'll pull out amount, party, and UPI ID.
-          </p>
         </div>
       </div>
+
 
       <div>
         <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Add manually</div>
@@ -1462,3 +1547,135 @@ function HomeAIInsights({ onOpen }: { onOpen: () => void }) {
     </button>
   );
 }
+
+function SmsConnectCard({ existing, onImported }: { existing: UpiTxn[]; onImported: () => void }) {
+  const [text, setText] = useState("");
+  const [preview, setPreview] = useState<ParsedSms[] | null>(null);
+  const [status, setStatus] = useState<string>("");
+  const [importing, setImporting] = useState(false);
+  const [scanning, setScanning] = useState(false);
+
+  const existingHashes = useMemo(() => {
+    const s = new Set<string>();
+    for (const t of existing) s.add(hashOf(t.direction, Number(t.amount), t.counterparty, t.occurred_at));
+    return s;
+  }, [existing]);
+
+  async function handleConnect() {
+    setScanning(true);
+    setStatus("Requesting SMS access…");
+    try {
+      const native = await tryReadNativeSms();
+      if (native) {
+        setText(native);
+        const parsed = parseSmsBatch(native);
+        setPreview(parsed);
+        const fresh = parsed.filter((p) => !existingHashes.has(p.hash)).length;
+        setStatus(`Scanned inbox — ${parsed.length} transactions found, ${fresh} new. Review below to import.`);
+      } else {
+        setStatus("Live SMS access needs the Android build (Capacitor + SMS permission). For now, long-press any bank SMS on your phone → Copy → paste below. You can paste many at once.");
+      }
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  function handlePreview() {
+    const parsed = parseSmsBatch(text);
+    setPreview(parsed);
+    const fresh = parsed.filter((p) => !existingHashes.has(p.hash)).length;
+    setStatus(parsed.length ? `Parsed ${parsed.length} transactions · ${fresh} new · ${parsed.length - fresh} already imported.` : "No transactions detected. Make sure each SMS is separated by a blank line.");
+  }
+
+  async function handleImport() {
+    if (!preview) return;
+    const fresh = preview.filter((p) => !existingHashes.has(p.hash));
+    if (fresh.length === 0) { setStatus("All parsed transactions already exist."); return; }
+    setImporting(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const rows = fresh.map((p) => ({
+        user_id: u.user!.id,
+        amount: p.amount,
+        direction: p.direction,
+        counterparty: p.counterparty,
+        upi_id: p.upi_id,
+        note: p.raw,
+        category: "other" as UpiCategory,
+        occurred_at: p.occurred_at,
+      }));
+      const { error } = await supabase.from("upi_transactions" as never).insert(rows as never);
+      if (error) throw error;
+      setStatus(`Imported ${rows.length} new transactions (${preview.length - rows.length} duplicates skipped).`);
+      setText(""); setPreview(null);
+      onImported();
+    } catch (e) {
+      setStatus(`Import failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  return (
+    <div className="va-glass rounded-2xl p-4 space-y-3">
+      <button
+        onClick={handleConnect}
+        disabled={scanning}
+        className="va-fab w-full rounded-xl py-3 text-[13px] font-semibold text-white active:scale-[0.98] transition flex items-center justify-center gap-2 disabled:opacity-60"
+      >
+        {scanning ? <Loader2 size={15} className="animate-spin" /> : <Smartphone size={15} />}
+        {scanning ? "Scanning inbox…" : "Connect SMS"}
+      </button>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={"Or paste one or many bank / UPI SMS here.\n\nSeparate messages with a blank line."}
+        rows={5}
+        className="va-input w-full rounded-xl px-4 py-3 text-[12px] va-mono"
+      />
+      <div className="flex gap-2">
+        <button
+          onClick={handlePreview}
+          disabled={!text.trim()}
+          className="flex-1 va-input rounded-xl py-2.5 text-[13px] font-medium text-purple-100 disabled:opacity-50"
+        >
+          Preview
+        </button>
+        <button
+          onClick={handleImport}
+          disabled={!preview || preview.length === 0 || importing}
+          className="flex-1 va-fab rounded-xl py-2.5 text-[13px] font-semibold text-white disabled:opacity-50"
+        >
+          {importing ? <Loader2 size={14} className="inline animate-spin" /> : `Import ${preview ? preview.filter((p) => !existingHashes.has(p.hash)).length : 0}`}
+        </button>
+      </div>
+      {status && <p className="text-[11px] text-purple-200/70 leading-relaxed">{status}</p>}
+      {preview && preview.length > 0 && (
+        <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1 -mx-1 px-1">
+          {preview.map((p, i) => {
+            const dup = existingHashes.has(p.hash);
+            return (
+              <div key={i} className={`flex items-center justify-between text-[12px] rounded-lg px-3 py-2 border ${dup ? "opacity-40 border-white/5" : "border-purple-400/20 bg-purple-400/5"}`}>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-purple-100">{p.counterparty}</div>
+                  <div className="text-[10px] text-purple-200/60 truncate">
+                    {fmtDateTime(p.occurred_at)}
+                    {p.upi_id && ` · ${p.upi_id}`}
+                    {dup && " · already imported"}
+                  </div>
+                </div>
+                <div className={`va-mono ml-2 shrink-0 ${p.direction === "credit" ? "text-emerald-300" : "text-fuchsia-300"}`}>
+                  {p.direction === "credit" ? "+" : "−"}₹{p.amount.toLocaleString("en-IN")}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <p className="text-[10.5px] text-purple-200/50 leading-relaxed">
+        Varaigya only reads SMS bodies to extract amount, party, and time. OTPs, PINs, and bank logins are never read or stored. On the Android build, tap Connect SMS to auto-import; on the web, paste messages here — duplicates are detected automatically.
+      </p>
+    </div>
+  );
+}
+
