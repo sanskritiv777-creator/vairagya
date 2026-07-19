@@ -1072,6 +1072,88 @@ function parseUpiText(text: string): Partial<UpiTxn> | null {
   return { amount, direction, counterparty, upi_id, note: text.slice(0, 200) };
 }
 
+// ---------- Bulk SMS import ----------
+type ParsedSms = {
+  amount: number;
+  direction: "credit" | "debit";
+  counterparty: string;
+  upi_id: string | null;
+  occurred_at: string;
+  raw: string;
+  hash: string;
+};
+
+const BANK_SENDERS = /\b(?:HDFC|ICICI|SBI|AXIS|KOTAK|PNB|BOI|IDBI|YES|IDFC|RBL|BOB|CANARA|UNION|INDIAN|CENTBK|CBIN|SBIINB|SBIUPI|PAYTM|PHONEPE|GPAY|BHIMUPI)\b/i;
+
+function hashOf(direction: string, amount: number, counterparty: string, iso: string) {
+  const minuteIso = new Date(Math.floor(new Date(iso).getTime() / 60000) * 60000).toISOString();
+  return `${direction}|${amount.toFixed(2)}|${counterparty.toLowerCase().replace(/\s+/g, "")}|${minuteIso}`;
+}
+
+function parseSmsBatch(dump: string): ParsedSms[] {
+  if (!dump.trim()) return [];
+  const chunks = dump
+    .split(/\n\s*\n|(?=(?:^|\n)[A-Z]{2}-)|(?=(?:^|\n)\s*(?:HDFC|ICICI|SBI|AXIS|KOTAK|PNB|IDFC|YES|RBL|BOB|CANARA|UNION|PAYTM|PHONEPE|GPAY)[:\s-])/i)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 12);
+
+  const out: ParsedSms[] = [];
+  for (const chunk of chunks) {
+    const p = parseUpiText(chunk);
+    if (!p || !p.amount || !isFinite(p.amount)) continue;
+
+    let occurred = new Date();
+    const dateMatch =
+      chunk.match(/on\s+(\d{1,2}[-\/\s][A-Za-z0-9]{2,4}[-\/\s]\d{2,4})(?:[\s,]+(?:at\s+)?(\d{1,2}[:.]\d{2}(?:\s*[AP]M)?))?/i) ||
+      chunk.match(/(\d{1,2}[-\/][A-Za-z]{3}[-\/]?\d{2,4})/);
+    if (dateMatch) {
+      const raw = dateMatch[1] + (dateMatch[2] ? " " + dateMatch[2].replace(".", ":") : "");
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) occurred = d;
+    }
+
+    const amount = p.amount;
+    const counterparty = (p.counterparty ?? "Unknown").trim();
+    const direction = p.direction ?? "debit";
+    const iso = occurred.toISOString();
+    out.push({
+      amount, direction, counterparty,
+      upi_id: p.upi_id ?? null,
+      occurred_at: iso,
+      raw: chunk.slice(0, 300),
+      hash: hashOf(direction, amount, counterparty, iso),
+    });
+  }
+  return out;
+}
+
+async function tryReadNativeSms(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  const w = window as unknown as { Capacitor?: { isNativePlatform?: () => boolean; Plugins?: Record<string, unknown> } };
+  const cap = w.Capacitor;
+  if (!cap?.isNativePlatform?.()) return null;
+  try {
+    const plugin = (cap.Plugins?.SmsInbox ?? cap.Plugins?.SMSInboxReader) as
+      | { checkPermissions?: () => Promise<{ sms?: string }>; requestPermissions?: () => Promise<{ sms?: string }>; getSmsList?: (opts: unknown) => Promise<{ smsList?: Array<{ address?: string; body?: string }> }> }
+      | undefined;
+    if (!plugin?.getSmsList) return null;
+    const perm = await plugin.checkPermissions?.();
+    if (perm && perm.sms !== "granted") {
+      const req = await plugin.requestPermissions?.();
+      if (req?.sms !== "granted") return null;
+    }
+    const since = Date.now() - 90 * 24 * 60 * 60 * 1000;
+    const res = await plugin.getSmsList({ filter: { minDate: since, maxCount: 500 } });
+    const list = res?.smsList ?? [];
+    return list
+      .filter((m) => BANK_SENDERS.test(m.address ?? "") || /credited|debited|paid|received|txn|upi|imps|neft/i.test(m.body ?? ""))
+      .map((m) => `${m.address ?? ""}: ${m.body ?? ""}`)
+      .join("\n\n");
+  } catch {
+    return null;
+  }
+}
+
 function UpiPanel() {
   const qc = useQueryClient();
   const [importText, setImportText] = useState("");
