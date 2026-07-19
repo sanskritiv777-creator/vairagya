@@ -1201,21 +1201,6 @@ function UpiPanel() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["upi_transactions"] }),
   });
 
-  function importFromText() {
-    const p = parseUpiText(importText);
-    if (!p) return;
-    add.mutate(
-      {
-        amount: p.amount!,
-        direction: p.direction!,
-        counterparty: p.counterparty!,
-        upi_id: p.upi_id ?? null,
-        note: p.note ?? null,
-        category: "other",
-      },
-      { onSuccess: () => setImportText("") },
-    );
-  }
 
   function addManual() {
     const amt = parseFloat(form.amount);
