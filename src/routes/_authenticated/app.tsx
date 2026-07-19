@@ -1156,7 +1156,7 @@ async function tryReadNativeSms(): Promise<string | null> {
 
 function UpiPanel() {
   const qc = useQueryClient();
-  const [importText, setImportText] = useState("");
+  
   const [form, setForm] = useState<{ amount: string; direction: "credit" | "debit"; counterparty: string; upi_id: string; category: UpiCategory; note: string }>({
     amount: "", direction: "debit", counterparty: "", upi_id: "", category: "other", note: "",
   });
@@ -1201,21 +1201,6 @@ function UpiPanel() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["upi_transactions"] }),
   });
 
-  function importFromText() {
-    const p = parseUpiText(importText);
-    if (!p) return;
-    add.mutate(
-      {
-        amount: p.amount!,
-        direction: p.direction!,
-        counterparty: p.counterparty!,
-        upi_id: p.upi_id ?? null,
-        note: p.note ?? null,
-        category: "other",
-      },
-      { onSuccess: () => setImportText("") },
-    );
-  }
 
   function addManual() {
     const amt = parseFloat(form.amount);
@@ -1270,29 +1255,11 @@ function UpiPanel() {
       </div>
 
       <div>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Auto import via SMS</div>
-        <SmsConnectCard existing={items} onImported={() => qc.invalidateQueries({ queryKey: ["upi_transactions"] })} />
+        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Automatic import</div>
+        <AutoImportCard existing={items} onImported={() => qc.invalidateQueries({ queryKey: ["upi_transactions"] })} />
       </div>
 
-      <div>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Quick add from one SMS</div>
-        <div className="va-glass rounded-2xl p-4 space-y-3">
-          <textarea
-            value={importText}
-            onChange={(e) => setImportText(e.target.value)}
-            placeholder="Paste a single UPI SMS or notification here…"
-            rows={3}
-            className="va-input w-full rounded-xl px-4 py-3 text-[13px]"
-          />
-          <button
-            onClick={importFromText}
-            disabled={!importText.trim() || add.isPending}
-            className="va-input w-full rounded-xl py-2.5 text-[13px] font-medium text-purple-100 active:scale-[0.98] transition disabled:opacity-50"
-          >
-            Parse & import one
-          </button>
-        </div>
-      </div>
+
 
 
       <div>
@@ -1548,12 +1515,55 @@ function HomeAIInsights({ onOpen }: { onOpen: () => void }) {
   );
 }
 
-function SmsConnectCard({ existing, onImported }: { existing: UpiTxn[]; onImported: () => void }) {
-  const [text, setText] = useState("");
-  const [preview, setPreview] = useState<ParsedSms[] | null>(null);
+function isNativeAndroid(): boolean {
+  if (typeof window === "undefined") return false;
+  const w = window as unknown as { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } };
+  return !!w.Capacitor?.isNativePlatform?.() && w.Capacitor?.getPlatform?.() === "android";
+}
+
+async function ingestParsed(fresh: ParsedSms[]): Promise<number> {
+  if (fresh.length === 0) return 0;
+  const { data: u } = await supabase.auth.getUser();
+  const rows = fresh.map((p) => ({
+    user_id: u.user!.id,
+    amount: p.amount,
+    direction: p.direction,
+    counterparty: p.counterparty,
+    upi_id: p.upi_id,
+    note: p.raw,
+    category: "other" as UpiCategory,
+    occurred_at: p.occurred_at,
+  }));
+  const { error } = await supabase.from("upi_transactions" as never).insert(rows as never);
+  if (error) throw error;
+  return rows.length;
+}
+
+// Attach a background listener on native so new SMS ingest automatically.
+async function attachNativeSmsListener(onImport: (count: number) => void, existingHashes: Set<string>) {
+  if (typeof window === "undefined") return () => {};
+  const w = window as unknown as { Capacitor?: { Plugins?: Record<string, unknown> } };
+  const plugin = (w.Capacitor?.Plugins?.SmsInbox ?? w.Capacitor?.Plugins?.SMSInboxReader) as
+    | { addListener?: (event: string, cb: (msg: { address?: string; body?: string }) => void) => Promise<{ remove: () => Promise<void> }> }
+    | undefined;
+  if (!plugin?.addListener) return () => {};
+  const sub = await plugin.addListener("smsReceived", async (msg) => {
+    const body = `${msg.address ?? ""}: ${msg.body ?? ""}`;
+    const parsed = parseSmsBatch(body).filter((p) => !existingHashes.has(p.hash));
+    if (parsed.length) {
+      const n = await ingestParsed(parsed);
+      parsed.forEach((p) => existingHashes.add(p.hash));
+      onImport(n);
+    }
+  });
+  return () => { void sub.remove(); };
+}
+
+function AutoImportCard({ existing, onImported }: { existing: UpiTxn[]; onImported: () => void }) {
   const [status, setStatus] = useState<string>("");
-  const [importing, setImporting] = useState(false);
-  const [scanning, setScanning] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+  const native = isNativeAndroid();
 
   const existingHashes = useMemo(() => {
     const s = new Set<string>();
@@ -1561,121 +1571,121 @@ function SmsConnectCard({ existing, onImported }: { existing: UpiTxn[]; onImport
     return s;
   }, [existing]);
 
-  async function handleConnect() {
-    setScanning(true);
-    setStatus("Requesting SMS access…");
+  // Re-attach background listener when enabled + hashes update.
+  useEffect(() => {
+    if (!enabled || !native) return;
+    let cleanup: (() => void) | undefined;
+    void attachNativeSmsListener((n) => {
+      setStatus(`Auto-imported ${n} new transaction${n === 1 ? "" : "s"} from a fresh SMS.`);
+      onImported();
+    }, existingHashes).then((fn) => { cleanup = fn; });
+    return () => { cleanup?.(); };
+  }, [enabled, native, existingHashes, onImported]);
+
+  async function handleEnable() {
+    setBusy(true);
+    setStatus("Requesting SMS permission…");
     try {
-      const native = await tryReadNativeSms();
-      if (native) {
-        setText(native);
-        const parsed = parseSmsBatch(native);
-        setPreview(parsed);
-        const fresh = parsed.filter((p) => !existingHashes.has(p.hash)).length;
-        setStatus(`Scanned inbox — ${parsed.length} transactions found, ${fresh} new. Review below to import.`);
-      } else {
-        setStatus("Live SMS access needs the Android build (Capacitor + SMS permission). For now, long-press any bank SMS on your phone → Copy → paste below. You can paste many at once.");
+      const dump = await tryReadNativeSms();
+      if (dump === null) {
+        setStatus("");
+        setEnabled(false);
+        return;
       }
-    } finally {
-      setScanning(false);
-    }
-  }
-
-  function handlePreview() {
-    const parsed = parseSmsBatch(text);
-    setPreview(parsed);
-    const fresh = parsed.filter((p) => !existingHashes.has(p.hash)).length;
-    setStatus(parsed.length ? `Parsed ${parsed.length} transactions · ${fresh} new · ${parsed.length - fresh} already imported.` : "No transactions detected. Make sure each SMS is separated by a blank line.");
-  }
-
-  async function handleImport() {
-    if (!preview) return;
-    const fresh = preview.filter((p) => !existingHashes.has(p.hash));
-    if (fresh.length === 0) { setStatus("All parsed transactions already exist."); return; }
-    setImporting(true);
-    try {
-      const { data: u } = await supabase.auth.getUser();
-      const rows = fresh.map((p) => ({
-        user_id: u.user!.id,
-        amount: p.amount,
-        direction: p.direction,
-        counterparty: p.counterparty,
-        upi_id: p.upi_id,
-        note: p.raw,
-        category: "other" as UpiCategory,
-        occurred_at: p.occurred_at,
-      }));
-      const { error } = await supabase.from("upi_transactions" as never).insert(rows as never);
-      if (error) throw error;
-      setStatus(`Imported ${rows.length} new transactions (${preview.length - rows.length} duplicates skipped).`);
-      setText(""); setPreview(null);
+      const parsed = parseSmsBatch(dump);
+      const fresh = parsed.filter((p) => !existingHashes.has(p.hash));
+      const n = await ingestParsed(fresh);
+      setEnabled(true);
+      setStatus(
+        n > 0
+          ? `Imported ${n} transactions from your inbox. New SMS will now sync automatically in the background.`
+          : `Your inbox is up to date. New SMS will sync automatically in the background.`,
+      );
       onImported();
     } catch (e) {
-      setStatus(`Import failed: ${e instanceof Error ? e.message : String(e)}`);
+      setStatus(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+      setEnabled(false);
     } finally {
-      setImporting(false);
+      setBusy(false);
     }
   }
 
-  return (
-    <div className="va-glass rounded-2xl p-4 space-y-3">
-      <button
-        onClick={handleConnect}
-        disabled={scanning}
-        className="va-fab w-full rounded-xl py-3 text-[13px] font-semibold text-white active:scale-[0.98] transition flex items-center justify-center gap-2 disabled:opacity-60"
-      >
-        {scanning ? <Loader2 size={15} className="animate-spin" /> : <Smartphone size={15} />}
-        {scanning ? "Scanning inbox…" : "Connect SMS"}
-      </button>
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder={"Or paste one or many bank / UPI SMS here.\n\nSeparate messages with a blank line."}
-        rows={5}
-        className="va-input w-full rounded-xl px-4 py-3 text-[12px] va-mono"
-      />
-      <div className="flex gap-2">
-        <button
-          onClick={handlePreview}
-          disabled={!text.trim()}
-          className="flex-1 va-input rounded-xl py-2.5 text-[13px] font-medium text-purple-100 disabled:opacity-50"
-        >
-          Preview
-        </button>
-        <button
-          onClick={handleImport}
-          disabled={!preview || preview.length === 0 || importing}
-          className="flex-1 va-fab rounded-xl py-2.5 text-[13px] font-semibold text-white disabled:opacity-50"
-        >
-          {importing ? <Loader2 size={14} className="inline animate-spin" /> : `Import ${preview ? preview.filter((p) => !existingHashes.has(p.hash)).length : 0}`}
-        </button>
-      </div>
-      {status && <p className="text-[11px] text-purple-200/70 leading-relaxed">{status}</p>}
-      {preview && preview.length > 0 && (
-        <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1 -mx-1 px-1">
-          {preview.map((p, i) => {
-            const dup = existingHashes.has(p.hash);
-            return (
-              <div key={i} className={`flex items-center justify-between text-[12px] rounded-lg px-3 py-2 border ${dup ? "opacity-40 border-white/5" : "border-purple-400/20 bg-purple-400/5"}`}>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-purple-100">{p.counterparty}</div>
-                  <div className="text-[10px] text-purple-200/60 truncate">
-                    {fmtDateTime(p.occurred_at)}
-                    {p.upi_id && ` · ${p.upi_id}`}
-                    {dup && " · already imported"}
-                  </div>
-                </div>
-                <div className={`va-mono ml-2 shrink-0 ${p.direction === "credit" ? "text-emerald-300" : "text-fuchsia-300"}`}>
-                  {p.direction === "credit" ? "+" : "−"}₹{p.amount.toLocaleString("en-IN")}
-                </div>
-              </div>
-            );
-          })}
+  // ── Web fallback: no paste UI. Honest explanation + install instructions. ──
+  if (!native) {
+    return (
+      <div className="va-glass rounded-2xl p-5 space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-400/15 text-amber-300 flex items-center justify-center shrink-0">
+            <AlertTriangle size={18} />
+          </div>
+          <div className="space-y-1">
+            <div className="text-[13.5px] font-semibold text-purple-50">Requires the Android app</div>
+            <div className="text-[11.5px] text-purple-200/70 leading-relaxed">
+              Web browsers cannot read SMS — Android reserves that permission for installed apps only. To enable
+              tap-once automatic import, install Varaigya as an Android app. Everything else keeps working here.
+            </div>
+          </div>
         </div>
-      )}
+
+        <div className="rounded-xl border border-purple-400/20 bg-purple-400/5 p-3.5 space-y-2">
+          <div className="text-[11px] uppercase tracking-[0.18em] text-purple-200/70">How auto-import works on Android</div>
+          <ol className="space-y-1.5 text-[12px] text-purple-100/80 list-decimal list-inside">
+            <li>Install the Varaigya Android build (Capacitor wrapper).</li>
+            <li>Tap <span className="text-purple-100 font-medium">Enable Automatic Import</span> once.</li>
+            <li>Android shows the SMS permission dialog — grant it.</li>
+            <li>Your last 90 days of bank / UPI SMS scan and import in seconds.</li>
+            <li>Every new transaction SMS syncs silently in the background.</li>
+          </ol>
+        </div>
+
+        <button
+          disabled
+          className="va-input w-full rounded-xl py-3 text-[13px] font-semibold text-purple-200/60 flex items-center justify-center gap-2 opacity-60 cursor-not-allowed"
+        >
+          <Smartphone size={15} /> Enable Automatic Import (Android only)
+        </button>
+        <p className="text-[10.5px] text-purple-200/50 leading-relaxed">
+          Only SMS bodies from bank/UPI senders are parsed for amount, party, and time. OTPs, PINs, and login codes are ignored and never leave the device unencrypted.
+        </p>
+      </div>
+    );
+  }
+
+  // ── Native Android path: real auto-import ──
+  return (
+    <div className="va-glass rounded-2xl p-5 space-y-4">
+      <div className="flex items-start gap-3">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${enabled ? "bg-emerald-400/15 text-emerald-300" : "bg-purple-400/15 text-purple-200"}`}>
+          <Smartphone size={18} />
+        </div>
+        <div className="space-y-1">
+          <div className="text-[13.5px] font-semibold text-purple-50">
+            {enabled ? "Auto-import is on" : "Automatic SMS import"}
+          </div>
+          <div className="text-[11.5px] text-purple-200/70 leading-relaxed">
+            {enabled
+              ? "New bank and UPI SMS are silently parsed and added to your timeline. No paste, no manual work."
+              : "Grant SMS permission once. Varaigya scans your existing bank/UPI SMS and keeps syncing new ones automatically."}
+          </div>
+        </div>
+      </div>
+
+      <button
+        onClick={handleEnable}
+        disabled={busy || enabled}
+        className="va-fab w-full rounded-xl py-3 text-[13px] font-semibold text-white active:scale-[0.98] transition flex items-center justify-center gap-2 disabled:opacity-70"
+      >
+        {busy ? <Loader2 size={15} className="animate-spin" /> : enabled ? <Sparkles size={15} /> : <Smartphone size={15} />}
+        {busy ? "Scanning inbox…" : enabled ? "Enabled — background sync active" : "Enable Automatic Import"}
+      </button>
+
+      {status && <p className="text-[11px] text-purple-200/70 leading-relaxed">{status}</p>}
+
       <p className="text-[10.5px] text-purple-200/50 leading-relaxed">
-        Varaigya only reads SMS bodies to extract amount, party, and time. OTPs, PINs, and bank logins are never read or stored. On the Android build, tap Connect SMS to auto-import; on the web, paste messages here — duplicates are detected automatically.
+        Varaigya reads only bank/UPI SMS bodies to extract amount, party, and time. OTPs, PINs, and login codes are ignored. Duplicates are detected automatically.
       </p>
     </div>
   );
 }
+
 
