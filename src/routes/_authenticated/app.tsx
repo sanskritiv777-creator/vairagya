@@ -1255,29 +1255,11 @@ function UpiPanel() {
       </div>
 
       <div>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Auto import via SMS</div>
-        <SmsConnectCard existing={items} onImported={() => qc.invalidateQueries({ queryKey: ["upi_transactions"] })} />
+        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Automatic import</div>
+        <AutoImportCard existing={items} onImported={() => qc.invalidateQueries({ queryKey: ["upi_transactions"] })} />
       </div>
 
-      <div>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Quick add from one SMS</div>
-        <div className="va-glass rounded-2xl p-4 space-y-3">
-          <textarea
-            value={importText}
-            onChange={(e) => setImportText(e.target.value)}
-            placeholder="Paste a single UPI SMS or notification here…"
-            rows={3}
-            className="va-input w-full rounded-xl px-4 py-3 text-[13px]"
-          />
-          <button
-            onClick={importFromText}
-            disabled={!importText.trim() || add.isPending}
-            className="va-input w-full rounded-xl py-2.5 text-[13px] font-medium text-purple-100 active:scale-[0.98] transition disabled:opacity-50"
-          >
-            Parse & import one
-          </button>
-        </div>
-      </div>
+
 
 
       <div>
