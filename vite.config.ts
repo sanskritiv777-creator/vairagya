@@ -6,6 +6,44 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { nitro } from "nitro/vite";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Nitro 3 ships its Cloudflare "module" runtime with a helper that
+ * mutates `request.ip` on the incoming `Request`. In modern Node/Bun the
+ * `Request` object is spec-frozen, so the assignment throws
+ * `Cannot set property ip of #<Request> which has only a getter` and the
+ * TanStack Start SPA prerender crashes before ever producing
+ * `.output/public/index.html`.
+ *
+ * We patch the helper in place (idempotent) to skip the mutation. The web
+ * (Cloudflare Worker) runtime is unaffected — in production Cloudflare's
+ * Request is writable, so the guarded try/catch simply succeeds.
+ */
+function patchNitroModuleHandlerForStaticBuild() {
+  const target = join(
+    __dirname,
+    "node_modules/nitro/dist/presets/cloudflare/runtime/_module-handler.mjs",
+  );
+  if (!existsSync(target)) return;
+  const source = readFileSync(target, "utf8");
+  if (source.includes("/* lovable-static-patch */")) return;
+  const patched = source.replace(
+    "export function augmentReq(cfReq, ctx) {",
+    "export function augmentReq(cfReq, ctx) { /* lovable-static-patch */ try {",
+  );
+  const finalPatched = patched.replace(
+    'req.waitUntil = ctx.context?.waitUntil.bind(ctx.context);\n}',
+    'req.waitUntil = ctx.context?.waitUntil?.bind(ctx.context);\n} catch { /* Request is read-only in Node/Bun during static prerender */ } }',
+  );
+  writeFileSync(target, finalPatched);
+}
+
+patchNitroModuleHandlerForStaticBuild();
 
 // Capacitor requires a plain static SPA bundle with an `index.html` entry
 // point (Capacitor's `webDir`). TanStack Start's SPA mode prerenders a
@@ -32,6 +70,16 @@ export default defineConfig({
   vite: {
     // Force nitro's static preset so the build only writes `.output/public`
     // (no Cloudflare Worker bundle needed for the APK).
-    plugins: [nitro({ preset: "static" })],
+    plugins: [
+      {
+        name: "lovable:patch-nitro-module-handler",
+        // Re-apply the patch on every build — node_modules may be reinstalled
+        // between CI runs.
+        config() {
+          patchNitroModuleHandlerForStaticBuild();
+        },
+      },
+      nitro({ preset: "static" }),
+    ],
   },
 });
