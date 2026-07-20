@@ -12,10 +12,18 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
     // Capacitor packages a plain static site (index.html + JS/CSS) into the
-    // native app shell — it cannot run TanStack Start's server. Prerendering
-    // emits real static output to dist/, which is what `capacitor.config.ts`
-    // (webDir: "dist") expects. The web/Lovable-hosted build is unaffected —
-    // this only changes what `vite build` outputs.
-    prerender: { enabled: true },
+    // native app shell — it cannot run TanStack Start's server, and this app
+    // is mostly client-rendered behind auth anyway. SPA mode emits a single
+    // static shell (dist/index.html + assets) instead of full per-route
+    // prerendering, which is the documented pattern for TanStack Start +
+    // Capacitor. The web/Lovable-hosted build is unaffected — this only
+    // changes what `vite build` outputs.
+    spa: {
+      enabled: true,
+      prerender: {
+        crawlLinks: false,
+        outputPath: "index.html",
+      },
+    },
   },
 });
