@@ -55,13 +55,15 @@ export async function registerPush(): Promise<string | null> {
   if (perm.receive !== "granted") return null;
 
   return new Promise((resolve) => {
+    type Handle = { remove: () => Promise<void> };
     const done = (token: string | null) => {
-      void regSub.then((s) => s.remove());
-      void errSub.then((s) => s.remove());
+      void regSub.then((s: Handle) => s.remove());
+      void errSub.then((s: Handle) => s.remove());
       resolve(token);
     };
-    const regSub = PushNotifications.addListener("registration", (t) =>
-      done(t.value),
+    const regSub = PushNotifications.addListener(
+      "registration",
+      (t: { value: string }) => done(t.value),
     );
     const errSub = PushNotifications.addListener("registrationError", () =>
       done(null),
