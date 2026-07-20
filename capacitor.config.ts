@@ -1,30 +1,56 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
-// Capacitor configuration for the Varaigya Android build.
-// Only used when you export the project and run:
-//   bun add -d @capacitor/cli
-//   bun add @capacitor/core @capacitor/android capacitor-sms-inbox
-//   bunx cap init "Varaigya" "app.varaigya" --web-dir=dist
-//   bun run build
-//   bunx cap add android
-//   bunx cap sync
-//   bunx cap open android
-//
-// See CAPACITOR-ANDROID.md for the full walkthrough.
+/**
+ * Capacitor configuration for the Vairagya Android app.
+ *
+ * The web app (Lovable preview + published site) keeps working unchanged;
+ * this file only takes effect when the project is exported and wrapped as
+ * a native Android app. See ANDROID-BUILD.md for the full walkthrough.
+ */
 const config: CapacitorConfig = {
-  appId: "app.varaigya",
-  appName: "Varaigya",
+  appId: "app.vairagya",
+  appName: "Vairagya",
   webDir: "dist",
+  bundledWebRuntime: false,
+
   android: {
-    // Required so the WebView allows requests to Supabase over HTTPS.
+    // Supabase + Lovable AI Gateway are HTTPS only.
     allowMixedContent: false,
+    captureInput: true,
+    webContentsDebuggingEnabled: false,
   },
+
+  server: {
+    // Use the packaged web assets. To point the shell at a hosted
+    // preview during development, set `url` to your preview URL and
+    // `cleartext: false`.
+    androidScheme: "https",
+  },
+
   plugins: {
-    // capacitor-sms-inbox plugin — reads inbox + emits a `smsReceived` event.
-    // The Varaigya JS layer looks for Capacitor.Plugins.SmsInbox at runtime.
+    SplashScreen: {
+      launchShowDuration: 1200,
+      backgroundColor: "#07050F",
+      androidSplashResourceName: "splash",
+      showSpinner: false,
+    },
+    StatusBar: {
+      style: "DARK",
+      backgroundColor: "#07050F",
+      overlaysWebView: false,
+    },
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert"],
+    },
+    LocalNotifications: {
+      smallIcon: "ic_stat_icon",
+      iconColor: "#8B5CF6",
+    },
     SmsInbox: {
-      // Filter narrows the inbox scan (last 90 days, up to 500 messages).
-      // The plugin's own bodyRegex further filters bank/UPI messages.
+      // capacitor-sms-inbox — see src/native/sms.ts for the runtime bridge.
+    },
+    BiometricAuth: {
+      // @aparajita/capacitor-biometric-auth — see src/native/biometrics.ts.
     },
   },
 };
