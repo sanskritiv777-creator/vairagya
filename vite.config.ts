@@ -32,15 +32,11 @@ function patchNitroModuleHandlerForStaticBuild() {
   if (!existsSync(target)) return;
   const source = readFileSync(target, "utf8");
   if (source.includes("/* lovable-static-patch */")) return;
-  const patched = source.replace(
-    "export function augmentReq(cfReq, ctx) {",
-    "export function augmentReq(cfReq, ctx) { /* lovable-static-patch */ try {",
-  );
-  const finalPatched = patched.replace(
-    'req.waitUntil = ctx.context?.waitUntil.bind(ctx.context);\n}',
-    'req.waitUntil = ctx.context?.waitUntil?.bind(ctx.context);\n} catch { /* Request is read-only in Node/Bun during static prerender */ } }',
-  );
-  const finalPatched = patched
+  const patched = source
+    .replace(
+      "export function augmentReq(cfReq, ctx) {",
+      "export function augmentReq(cfReq, ctx) { /* lovable-static-patch */ try {",
+    )
     .replace(
       'req.waitUntil = ctx.context?.waitUntil.bind(ctx.context);\n}',
       'req.waitUntil = ctx.context?.waitUntil?.bind(ctx.context);\n} catch { /* Request is read-only in Node/Bun during static prerender */ } }',
@@ -48,9 +44,8 @@ function patchNitroModuleHandlerForStaticBuild() {
     // The Cloudflare module handler assumes `env` (the Workers bindings
     // bag) is defined. During the prerender step `env` is undefined, which
     // throws "Cannot read properties of undefined (reading 'ASSETS')".
-    // Guard the access so prerender falls through to the nitro app.
     .replace("env.ASSETS && isPublicAssetURL", "env?.ASSETS && isPublicAssetURL");
-  writeFileSync(target, finalPatched);
+  writeFileSync(target, patched);
 }
 
 // Also patch the cloudflare-module runtime file (env.ASSETS guard).
