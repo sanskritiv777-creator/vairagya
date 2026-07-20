@@ -10,6 +10,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const config: CapacitorConfig = {
   appId: "app.vairagya",
   appName: "Vairagya",
+  // TanStack Start's SPA mode emits the static shell at `.output/public/index.html`.
   webDir: ".output/public",
   bundledWebRuntime: false,
 

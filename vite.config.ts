@@ -7,18 +7,31 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { nitro } from "nitro/vite";
 
+// Capacitor requires a plain static SPA bundle with an `index.html` entry
+// point (Capacitor's `webDir`). TanStack Start's SPA mode prerenders a
+// single client-only shell that all routes hydrate against, which is
+// exactly what a WebView needs. The web (Lovable) build is unaffected —
+// the shell also works as the SSR fallback.
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    // nitro/vite builds from this
     server: { entry: "server" },
+    // Emit a static SPA shell at `.output/public/index.html`. Every route
+    // hydrates on the client — no per-route prerender, no SSR required at
+    // runtime. This is the file Capacitor loads inside the WebView.
+    spa: {
+      enabled: true,
+      maskPath: "/",
+      prerender: {
+        enabled: true,
+        outputPath: "/index.html",
+        crawlLinks: false,
+      },
+    },
   },
-  // Capacitor needs a plain static site (index.html + JS/CSS), not the
-  // Cloudflare-Worker-shaped server bundle this template builds by default.
-  // Overriding the nitro preset to "static" here — via the officially
-  // documented `vite: { plugins: [...] }` escape hatch — produces real
-  // static output instead. The web/Lovable-hosted build is unaffected.
   vite: {
+    // Force nitro's static preset so the build only writes `.output/public`
+    // (no Cloudflare Worker bundle needed for the APK).
     plugins: [nitro({ preset: "static" })],
   },
 });
