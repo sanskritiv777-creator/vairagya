@@ -10,7 +10,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const config: CapacitorConfig = {
   appId: "app.vairagya",
   appName: "Vairagya",
-  webDir: ".output/public",
+  webDir: "dist",
   bundledWebRuntime: false,
 
   android: {
