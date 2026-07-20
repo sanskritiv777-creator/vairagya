@@ -28,7 +28,11 @@ jobs:
         run: bun install
 
       - name: Build web assets
-        run: bun run build
+        run: |
+         bun run build
+         ls -la
+         ls -la dist || true
+
 
       - name: Debug - list build output
         run: |
