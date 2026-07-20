@@ -11,5 +11,11 @@ export default defineConfig({
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
+    // Capacitor packages a plain static site (index.html + JS/CSS) into the
+    // native app shell — it cannot run TanStack Start's server. Prerendering
+    // emits real static output to dist/, which is what `capacitor.config.ts`
+    // (webDir: "dist") expects. The web/Lovable-hosted build is unaffected —
+    // this only changes what `vite build` outputs.
+    prerender: { enabled: true },
   },
 });
