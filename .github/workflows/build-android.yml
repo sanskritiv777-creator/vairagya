@@ -30,6 +30,17 @@ jobs:
       - name: Build web assets
         run: bun run build
 
+      - name: Debug - list build output
+        run: |
+          echo "--- Top-level dirs ---"
+          ls -la
+          echo "--- .output (if exists) ---"
+          find .output -maxdepth 3 2>/dev/null || echo "(no .output dir)"
+          echo "--- dist (if exists) ---"
+          find dist -maxdepth 3 2>/dev/null || echo "(no dist dir)"
+          echo "--- any index.html anywhere ---"
+          find . -maxdepth 5 -iname "index.html" -not -path "*/node_modules/*" 2>/dev/null || echo "(none found)"
+
       - name: Add Android platform
         run: bunx cap add android
 
