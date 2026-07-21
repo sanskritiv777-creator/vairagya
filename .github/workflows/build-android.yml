@@ -18,8 +18,8 @@ jobs:
       - name: Setup JDK 21
         uses: actions/setup-java@v4
         with:
-            distribution: temurin
-            java-version: "21"
+          distribution: temurin
+          java-version: "21"
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -28,28 +28,7 @@ jobs:
         run: bun install
 
       - name: Build web assets
-        run: |
-           bun run build
-           echo "--- Top-level dirs ---"
-           ls -la
-           echo "--- .output (if exists) ---"
-           find .output -maxdepth 3 2>/dev/null || echo "(no .output dir)"
-           echo "--- dist (if exists) ---"
-           find dist -maxdepth 3 2>/dev/null || echo "(no dist dir)"
-           echo "--- any index.html anywhere ---"
-           find . -maxdepth 5 -iname "index.html" -not -path "*/node_modules/*" 2>/dev/null || echo "(none found)"
-
-
-      - name: Debug - list build output
-        run: |
-          echo "--- Top-level dirs ---"
-          ls -la
-          echo "--- .output (if exists) ---"
-          find .output -maxdepth 3 2>/dev/null || echo "(no .output dir)"
-          echo "--- dist (if exists) ---"
-          find dist -maxdepth 3 2>/dev/null || echo "(no dist dir)"
-          echo "--- any index.html anywhere ---"
-          find . -maxdepth 5 -iname "index.html" -not -path "*/node_modules/*" 2>/dev/null || echo "(none found)"
+        run: bun run build
 
       - name: Add Android platform
         run: bunx cap add android
@@ -57,19 +36,20 @@ jobs:
       - name: Sync Capacitor
         run: bunx cap sync android
 
-      - name: Add required permissions to AndroidManifest.xml
+      - name: Prepare launcher icon + splash source images
+        run: node scripts/prepare-android-assets.mjs
+
+      - name: Generate Android launcher/adaptive/monochrome icons + splash
         run: |
-          MANIFEST=android/app/src/main/AndroidManifest.xml
-          sed -i '/<application/i\
-              <uses-permission android:name="android.permission.READ_SMS" />\
-              <uses-permission android:name="android.permission.RECEIVE_SMS" />\
-              <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\
-              <uses-permission android:name="android.permission.USE_BIOMETRIC" />\
-              <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />\
-              <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\
-              <uses-permission android:name="android.permission.WAKE_LOCK" />\
-              <uses-permission android:name="android.permission.INTERNET" />' "$MANIFEST"
-          cat "$MANIFEST"
+          bunx @capacitor/assets generate --android \
+            --iconBackgroundColor "#07050F" \
+            --iconBackgroundColorDark "#07050F" \
+            --splashBackgroundColor "#07050F" \
+            --splashBackgroundColorDark "#07050F"
+
+      - name: Patch AndroidManifest.xml (permissions + SMS query)
+        run: |
+          python3 scripts/patch-android-manifest.py
 
       - name: Build debug APK
         working-directory: android
