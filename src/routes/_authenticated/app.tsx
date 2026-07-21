@@ -1659,6 +1659,20 @@ function AutoImportCard({ existing, onImported }: { existing: UpiTxn[]; onImport
     return () => { cleanup?.(); };
   }, [enabled, native, existingHashes, onImported]);
 
+  // First-launch auto-request on Android: kick off the permission dialog +
+  // full inbox scan the first time the user opens the app. If they deny,
+  // the button below still lets them retry manually.
+  useEffect(() => {
+    if (!native) return;
+    if (typeof window === "undefined") return;
+    const KEY = "vairagya.autoImportBootstrapped";
+    if (window.localStorage.getItem(KEY)) return;
+    window.localStorage.setItem(KEY, "1");
+    void handleEnable();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [native]);
+
+
   async function handleEnable() {
     setBusy(true);
     setStatus("Requesting SMS permission…");
