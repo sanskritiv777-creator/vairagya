@@ -1050,26 +1050,78 @@ function fmtDateTime(iso: string) {
   return d.toLocaleString("en-IN", { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
-// Parse a pasted UPI SMS/notification. Best-effort — supports common templates.
-function parseUpiText(text: string): Partial<UpiTxn> | null {
-  if (!text.trim()) return null;
-  const amtMatch = text.match(/(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d+)?)/i);
-  const amount = amtMatch ? parseFloat(amtMatch[1].replace(/,/g, "")) : NaN;
-  if (!isFinite(amount)) return null;
+// ============================================================================
+// SMS → transaction parser
+// ----------------------------------------------------------------------------
+// Recognises transactional SMS from major Indian banks and UPI apps (SBI,
+// HDFC, ICICI, Axis, Kotak, IDFC FIRST, Canara, Union, BoB, PNB, BoI, IDBI,
+// Yes, RBL, Federal, IndusInd, Indian Bank + PhonePe, Google Pay, Paytm,
+// BHIM, Amazon Pay) and extracts amount, direction, counterparty, bank, UPI
+// ID, reference number, available balance and timestamp. Non-transactional
+// noise (OTP, promo, delivery, spam) is rejected up-front so parsing stays
+// fast even against thousands of messages.
+// ============================================================================
 
-  const credit = /credited|received|deposited|added/i.test(text);
-  const debit = /debited|paid|sent|spent|withdrawn/i.test(text);
+// Sender-id fragments used by Indian bank/UPI SMS headers (e.g. VM-HDFCBK,
+// AX-SBIUPI, JD-ICICIB, VK-PAYTM). Match against the address field.
+const BANK_SENDERS =
+  /\b(?:HDFC(?:BK)?|ICICI(?:B|BANK)?|SBI(?:INB|UPI|BNK)?|AXIS(?:BK)?|KOTAK|PNB|BOI|BOB|BARODA|IDBI|YES(?:BK)?|IDFC(?:FB|FIRST)?|RBL|CANARA|CANBNK|UNION|UBI|INDIAN|INDBNK|CENTBK|CBIN|FED(?:BNK)?|FEDERAL|INDUS(?:IND)?|HSBC|CITI|SCB|DBS|AU(?:BANK)?|BANDHAN|EQUITAS|UCO|IOB|PAYTM(?:B|BNK)?|PHONEPE|GPAY|GOOGL(?:E)?PAY|BHIM(?:UPI)?|AMAZONPAY|APAY|MOBIKWIK|FREECHRG|CRED)\b/i;
+
+// A message must positively signal a completed money movement.
+const TXN_HINT =
+  /\b(?:credited|debited|received|paid|sent|spent|withdrawn|deposited|transferred|refunded|refund|purchase|payment of|debit for|credit for|txn|imps|neft|rtgs|upi|a\/c|acct)\b/i;
+
+// Immediate rejects — OTP codes, promotional offers, delivery updates, spam.
+// Order matters: cheap prefix check before the heavier regex.
+const NOISE_RE =
+  /\b(?:otp|one[\s-]?time[\s-]?password|verification code|do not share|dont share|passcode|login code|auth code|will expire|valid for \d+ (?:min|sec)|offer|cashback offer|discount|sale|deal|coupon|voucher|win|winner|lottery|prize|loan|emi offer|pre[\s-]?approved|apply now|click here|http[s]?:\/\/(?!.*(?:receipt|invoice))|shipped|delivered|out for delivery|order (?:placed|confirmed)|appointment|schedule)\b/i;
+
+// Parse a single SMS body into a transaction. Returns null when the message
+// is not a bank/UPI transaction we understand.
+function parseUpiText(text: string): (Partial<UpiTxn> & { bank?: string; ref?: string; balance?: number }) | null {
+  const body = text.trim();
+  if (body.length < 10) return null;
+
+  // Fast rejects for OTP / promo / delivery noise.
+  if (NOISE_RE.test(body)) return null;
+  if (!TXN_HINT.test(body)) return null;
+
+  const amtMatch = body.match(/(?:Rs\.?|INR|₹|Rs)\s*([\d,]+(?:\.\d+)?)/i);
+  const amount = amtMatch ? parseFloat(amtMatch[1].replace(/,/g, "")) : NaN;
+  if (!isFinite(amount) || amount <= 0) return null;
+
+  const credit = /\b(credited|received|deposited|refunded|refund|added to)\b/i.test(body);
+  const debit = /\b(debited|paid|sent|spent|withdrawn|purchase|debit)\b/i.test(body);
   const direction: "credit" | "debit" = credit && !debit ? "credit" : "debit";
 
-  const upiMatch = text.match(/([a-zA-Z0-9._-]+@[a-zA-Z]{2,})/);
+  const upiMatch = body.match(/([a-zA-Z0-9._-]{2,}@[a-zA-Z]{2,})/);
   const upi_id = upiMatch ? upiMatch[1] : null;
 
-  const partyMatch =
-    text.match(/(?:to|from|by)\s+([A-Z][A-Za-z0-9 .&'-]{2,40})(?:\s+on|\.|,|$)/) ||
-    text.match(/VPA\s+([a-zA-Z0-9._-]+@[a-zA-Z]{2,})/);
-  const counterparty = partyMatch ? partyMatch[1].trim() : (upi_id ?? "Unknown");
+  // Counterparty: prefer "to/from NAME", then VPA handle, then any capitalised
+  // merchant fragment near a payment verb.
+  let counterparty: string | null = null;
+  const named =
+    body.match(/(?:to|from|by|at)\s+((?:[A-Z][A-Za-z0-9&'.\- ]{1,40}?))(?=\s+(?:on|via|Ref|UPI|Info|Bal|A\/c|for)|[.,;]|$)/) ||
+    body.match(/VPA\s+([a-zA-Z0-9._-]+@[a-zA-Z]{2,})/i) ||
+    body.match(/UPI\/(?:P2[APM]|CR|DR)\/\d+\/([A-Z][A-Za-z0-9&'.\- ]{2,40})/);
+  if (named) counterparty = named[1].trim();
+  if (!counterparty && upi_id) counterparty = upi_id;
+  if (!counterparty) counterparty = "Unknown";
 
-  return { amount, direction, counterparty, upi_id, note: text.slice(0, 200) };
+  const refMatch = body.match(/(?:Ref(?:erence)?(?:\s*No\.?|#)?|UTR|Txn(?:\s*ID)?|RRN)[:\s]*([A-Za-z0-9]{6,})/i);
+  const balMatch = body.match(/(?:Avl(?:\.?\s*Bal)?|Available Bal(?:ance)?|Bal(?:ance)?)[:\s]*(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d+)?)/i);
+  const bankMatch = body.match(BANK_SENDERS);
+
+  return {
+    amount,
+    direction,
+    counterparty,
+    upi_id,
+    note: body.slice(0, 240),
+    bank: bankMatch ? bankMatch[0].toUpperCase() : undefined,
+    ref: refMatch ? refMatch[1] : undefined,
+    balance: balMatch ? parseFloat(balMatch[1].replace(/,/g, "")) : undefined,
+  };
 }
 
 // ---------- Bulk SMS import ----------
@@ -1083,17 +1135,17 @@ type ParsedSms = {
   hash: string;
 };
 
-const BANK_SENDERS = /\b(?:HDFC|ICICI|SBI|AXIS|KOTAK|PNB|BOI|IDBI|YES|IDFC|RBL|BOB|CANARA|UNION|INDIAN|CENTBK|CBIN|SBIINB|SBIUPI|PAYTM|PHONEPE|GPAY|BHIMUPI)\b/i;
-
 function hashOf(direction: string, amount: number, counterparty: string, iso: string) {
   const minuteIso = new Date(Math.floor(new Date(iso).getTime() / 60000) * 60000).toISOString();
   return `${direction}|${amount.toFixed(2)}|${counterparty.toLowerCase().replace(/\s+/g, "")}|${minuteIso}`;
 }
 
+// Parse a `\n\n`-joined dump of `sender: body` lines produced by
+// `tryReadNativeSms()`. Also usable on a single message.
 function parseSmsBatch(dump: string): ParsedSms[] {
   if (!dump.trim()) return [];
   const chunks = dump
-    .split(/\n\s*\n|(?=(?:^|\n)[A-Z]{2}-)|(?=(?:^|\n)\s*(?:HDFC|ICICI|SBI|AXIS|KOTAK|PNB|IDFC|YES|RBL|BOB|CANARA|UNION|PAYTM|PHONEPE|GPAY)[:\s-])/i)
+    .split(/\n\s*\n/)
     .map((s) => s.trim())
     .filter((s) => s.length > 12);
 
@@ -1104,8 +1156,8 @@ function parseSmsBatch(dump: string): ParsedSms[] {
 
     let occurred = new Date();
     const dateMatch =
-      chunk.match(/on\s+(\d{1,2}[-\/\s][A-Za-z0-9]{2,4}[-\/\s]\d{2,4})(?:[\s,]+(?:at\s+)?(\d{1,2}[:.]\d{2}(?:\s*[AP]M)?))?/i) ||
-      chunk.match(/(\d{1,2}[-\/][A-Za-z]{3}[-\/]?\d{2,4})/);
+      chunk.match(/on\s+(\d{1,2}[-/\s][A-Za-z0-9]{2,4}[-/\s]\d{2,4})(?:[\s,]+(?:at\s+)?(\d{1,2}[:.]\d{2}(?:\s*[AP]M)?))?/i) ||
+      chunk.match(/(\d{1,2}[-/][A-Za-z]{3}[-/]?\d{2,4})/);
     if (dateMatch) {
       const raw = dateMatch[1] + (dateMatch[2] ? " " + dateMatch[2].replace(".", ":") : "");
       const d = new Date(raw);
@@ -1117,7 +1169,9 @@ function parseSmsBatch(dump: string): ParsedSms[] {
     const direction = p.direction ?? "debit";
     const iso = occurred.toISOString();
     out.push({
-      amount, direction, counterparty,
+      amount,
+      direction,
+      counterparty,
       upi_id: p.upi_id ?? null,
       occurred_at: iso,
       raw: chunk.slice(0, 300),
@@ -1129,12 +1183,23 @@ function parseSmsBatch(dump: string): ParsedSms[] {
 
 async function tryReadNativeSms(): Promise<string | null> {
   if (typeof window === "undefined") return null;
-  const w = window as unknown as { Capacitor?: { isNativePlatform?: () => boolean; Plugins?: Record<string, unknown> } };
+  const w = window as unknown as {
+    Capacitor?: {
+      isNativePlatform?: () => boolean;
+      Plugins?: Record<string, unknown>;
+    };
+  };
   const cap = w.Capacitor;
   if (!cap?.isNativePlatform?.()) return null;
   try {
     const plugin = (cap.Plugins?.SmsInbox ?? cap.Plugins?.SMSInboxReader) as
-      | { checkPermissions?: () => Promise<{ sms?: string }>; requestPermissions?: () => Promise<{ sms?: string }>; getSmsList?: (opts: unknown) => Promise<{ smsList?: Array<{ address?: string; body?: string }> }> }
+      | {
+          checkPermissions?: () => Promise<{ sms?: string }>;
+          requestPermissions?: () => Promise<{ sms?: string }>;
+          getSmsList?: (opts: unknown) => Promise<{
+            smsList?: Array<{ address?: string; body?: string; date?: number }>;
+          }>;
+        }
       | undefined;
     if (!plugin?.getSmsList) return null;
     const perm = await plugin.checkPermissions?.();
@@ -1142,11 +1207,23 @@ async function tryReadNativeSms(): Promise<string | null> {
       const req = await plugin.requestPermissions?.();
       if (req?.sms !== "granted") return null;
     }
-    const since = Date.now() - 90 * 24 * 60 * 60 * 1000;
-    const res = await plugin.getSmsList({ filter: { minDate: since, maxCount: 500 } });
+    // Scan up to a year back / 5k messages — plenty for a full history sync.
+    const since = Date.now() - 365 * 24 * 60 * 60 * 1000;
+    const res = await plugin.getSmsList({
+      filter: { minDate: since, maxCount: 5000 },
+    });
     const list = res?.smsList ?? [];
+    // First-pass cheap filter: keep only messages that look like they came
+    // from a bank/UPI sender OR contain a transactional hint. Full parsing
+    // and OTP/promo rejection happens in parseUpiText.
     return list
-      .filter((m) => BANK_SENDERS.test(m.address ?? "") || /credited|debited|paid|received|txn|upi|imps|neft/i.test(m.body ?? ""))
+      .filter((m) => {
+        const addr = m.address ?? "";
+        const body = m.body ?? "";
+        return (
+          (BANK_SENDERS.test(addr) || TXN_HINT.test(body)) && !NOISE_RE.test(body)
+        );
+      })
       .map((m) => `${m.address ?? ""}: ${m.body ?? ""}`)
       .join("\n\n");
   } catch {
@@ -1581,6 +1658,20 @@ function AutoImportCard({ existing, onImported }: { existing: UpiTxn[]; onImport
     }, existingHashes).then((fn) => { cleanup = fn; });
     return () => { cleanup?.(); };
   }, [enabled, native, existingHashes, onImported]);
+
+  // First-launch auto-request on Android: kick off the permission dialog +
+  // full inbox scan the first time the user opens the app. If they deny,
+  // the button below still lets them retry manually.
+  useEffect(() => {
+    if (!native) return;
+    if (typeof window === "undefined") return;
+    const KEY = "vairagya.autoImportBootstrapped";
+    if (window.localStorage.getItem(KEY)) return;
+    window.localStorage.setItem(KEY, "1");
+    void handleEnable();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [native]);
+
 
   async function handleEnable() {
     setBusy(true);
