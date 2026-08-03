@@ -8,8 +8,16 @@ import {
   Smartphone, Brain, RefreshCw, TrendingUp, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useServerFn } from "@tanstack/react-start";
-import { generateInsights } from "@/lib/insights.functions";
+import { parseMessages, parseTransactionText } from "@/lib/txn-parser";
+import { ingestTransactions } from "@/lib/ingest";
+import { ilog } from "@/lib/ingest-log";
+import { fetchInsights } from "@/lib/insights-client";
+import { requestSmsPermission, readAllSms } from "@/native/sms";
+import {
+  hasNotificationAccess,
+  requestNotificationAccess,
+  subscribeNotifications,
+} from "@/native/notification-listener";
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({
@@ -1051,185 +1059,10 @@ function fmtDateTime(iso: string) {
 }
 
 // ============================================================================
-// SMS → transaction parser
-// ----------------------------------------------------------------------------
-// Recognises transactional SMS from major Indian banks and UPI apps (SBI,
-// HDFC, ICICI, Axis, Kotak, IDFC FIRST, Canara, Union, BoB, PNB, BoI, IDBI,
-// Yes, RBL, Federal, IndusInd, Indian Bank + PhonePe, Google Pay, Paytm,
-// BHIM, Amazon Pay) and extracts amount, direction, counterparty, bank, UPI
-// ID, reference number, available balance and timestamp. Non-transactional
-// noise (OTP, promo, delivery, spam) is rejected up-front so parsing stays
-// fast even against thousands of messages.
+// SMS / notification → transaction parsing lives in src/lib/txn-parser.ts and
+// database ingestion (with duplicate prevention) in src/lib/ingest.ts.
 // ============================================================================
 
-// Sender-id fragments used by Indian bank/UPI SMS headers (e.g. VM-HDFCBK,
-// AX-SBIUPI, JD-ICICIB, VK-PAYTM). Match against the address field.
-const BANK_SENDERS =
-  /\b(?:HDFC(?:BK)?|ICICI(?:B|BANK)?|SBI(?:INB|UPI|BNK)?|AXIS(?:BK)?|KOTAK|PNB|BOI|BOB|BARODA|IDBI|YES(?:BK)?|IDFC(?:FB|FIRST)?|RBL|CANARA|CANBNK|UNION|UBI|INDIAN|INDBNK|CENTBK|CBIN|FED(?:BNK)?|FEDERAL|INDUS(?:IND)?|HSBC|CITI|SCB|DBS|AU(?:BANK)?|BANDHAN|EQUITAS|UCO|IOB|PAYTM(?:B|BNK)?|PHONEPE|GPAY|GOOGL(?:E)?PAY|BHIM(?:UPI)?|AMAZONPAY|APAY|MOBIKWIK|FREECHRG|CRED)\b/i;
-
-// A message must positively signal a completed money movement.
-const TXN_HINT =
-  /\b(?:credited|debited|received|paid|sent|spent|withdrawn|deposited|transferred|refunded|refund|purchase|payment of|debit for|credit for|txn|imps|neft|rtgs|upi|a\/c|acct)\b/i;
-
-// Immediate rejects — OTP codes, promotional offers, delivery updates, spam.
-// Order matters: cheap prefix check before the heavier regex.
-const NOISE_RE =
-  /\b(?:otp|one[\s-]?time[\s-]?password|verification code|do not share|dont share|passcode|login code|auth code|will expire|valid for \d+ (?:min|sec)|offer|cashback offer|discount|sale|deal|coupon|voucher|win|winner|lottery|prize|loan|emi offer|pre[\s-]?approved|apply now|click here|http[s]?:\/\/(?!.*(?:receipt|invoice))|shipped|delivered|out for delivery|order (?:placed|confirmed)|appointment|schedule)\b/i;
-
-// Parse a single SMS body into a transaction. Returns null when the message
-// is not a bank/UPI transaction we understand.
-function parseUpiText(text: string): (Partial<UpiTxn> & { bank?: string; ref?: string; balance?: number }) | null {
-  const body = text.trim();
-  if (body.length < 10) return null;
-
-  // Fast rejects for OTP / promo / delivery noise.
-  if (NOISE_RE.test(body)) return null;
-  if (!TXN_HINT.test(body)) return null;
-
-  const amtMatch = body.match(/(?:Rs\.?|INR|₹|Rs)\s*([\d,]+(?:\.\d+)?)/i);
-  const amount = amtMatch ? parseFloat(amtMatch[1].replace(/,/g, "")) : NaN;
-  if (!isFinite(amount) || amount <= 0) return null;
-
-  const credit = /\b(credited|received|deposited|refunded|refund|added to)\b/i.test(body);
-  const debit = /\b(debited|paid|sent|spent|withdrawn|purchase|debit)\b/i.test(body);
-  const direction: "credit" | "debit" = credit && !debit ? "credit" : "debit";
-
-  const upiMatch = body.match(/([a-zA-Z0-9._-]{2,}@[a-zA-Z]{2,})/);
-  const upi_id = upiMatch ? upiMatch[1] : null;
-
-  // Counterparty: prefer "to/from NAME", then VPA handle, then any capitalised
-  // merchant fragment near a payment verb.
-  let counterparty: string | null = null;
-  const named =
-    body.match(/(?:to|from|by|at)\s+((?:[A-Z][A-Za-z0-9&'.\- ]{1,40}?))(?=\s+(?:on|via|Ref|UPI|Info|Bal|A\/c|for)|[.,;]|$)/) ||
-    body.match(/VPA\s+([a-zA-Z0-9._-]+@[a-zA-Z]{2,})/i) ||
-    body.match(/UPI\/(?:P2[APM]|CR|DR)\/\d+\/([A-Z][A-Za-z0-9&'.\- ]{2,40})/);
-  if (named) counterparty = named[1].trim();
-  if (!counterparty && upi_id) counterparty = upi_id;
-  if (!counterparty) counterparty = "Unknown";
-
-  const refMatch = body.match(/(?:Ref(?:erence)?(?:\s*No\.?|#)?|UTR|Txn(?:\s*ID)?|RRN)[:\s]*([A-Za-z0-9]{6,})/i);
-  const balMatch = body.match(/(?:Avl(?:\.?\s*Bal)?|Available Bal(?:ance)?|Bal(?:ance)?)[:\s]*(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d+)?)/i);
-  const bankMatch = body.match(BANK_SENDERS);
-
-  return {
-    amount,
-    direction,
-    counterparty,
-    upi_id,
-    note: body.slice(0, 240),
-    bank: bankMatch ? bankMatch[0].toUpperCase() : undefined,
-    ref: refMatch ? refMatch[1] : undefined,
-    balance: balMatch ? parseFloat(balMatch[1].replace(/,/g, "")) : undefined,
-  };
-}
-
-// ---------- Bulk SMS import ----------
-type ParsedSms = {
-  amount: number;
-  direction: "credit" | "debit";
-  counterparty: string;
-  upi_id: string | null;
-  occurred_at: string;
-  raw: string;
-  hash: string;
-};
-
-function hashOf(direction: string, amount: number, counterparty: string, iso: string) {
-  const minuteIso = new Date(Math.floor(new Date(iso).getTime() / 60000) * 60000).toISOString();
-  return `${direction}|${amount.toFixed(2)}|${counterparty.toLowerCase().replace(/\s+/g, "")}|${minuteIso}`;
-}
-
-// Parse a `\n\n`-joined dump of `sender: body` lines produced by
-// `tryReadNativeSms()`. Also usable on a single message.
-function parseSmsBatch(dump: string): ParsedSms[] {
-  if (!dump.trim()) return [];
-  const chunks = dump
-    .split(/\n\s*\n/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 12);
-
-  const out: ParsedSms[] = [];
-  for (const chunk of chunks) {
-    const p = parseUpiText(chunk);
-    if (!p || !p.amount || !isFinite(p.amount)) continue;
-
-    let occurred = new Date();
-    const dateMatch =
-      chunk.match(/on\s+(\d{1,2}[-/\s][A-Za-z0-9]{2,4}[-/\s]\d{2,4})(?:[\s,]+(?:at\s+)?(\d{1,2}[:.]\d{2}(?:\s*[AP]M)?))?/i) ||
-      chunk.match(/(\d{1,2}[-/][A-Za-z]{3}[-/]?\d{2,4})/);
-    if (dateMatch) {
-      const raw = dateMatch[1] + (dateMatch[2] ? " " + dateMatch[2].replace(".", ":") : "");
-      const d = new Date(raw);
-      if (!isNaN(d.getTime())) occurred = d;
-    }
-
-    const amount = p.amount;
-    const counterparty = (p.counterparty ?? "Unknown").trim();
-    const direction = p.direction ?? "debit";
-    const iso = occurred.toISOString();
-    out.push({
-      amount,
-      direction,
-      counterparty,
-      upi_id: p.upi_id ?? null,
-      occurred_at: iso,
-      raw: chunk.slice(0, 300),
-      hash: hashOf(direction, amount, counterparty, iso),
-    });
-  }
-  return out;
-}
-
-async function tryReadNativeSms(): Promise<string | null> {
-  if (typeof window === "undefined") return null;
-  const w = window as unknown as {
-    Capacitor?: {
-      isNativePlatform?: () => boolean;
-      Plugins?: Record<string, unknown>;
-    };
-  };
-  const cap = w.Capacitor;
-  if (!cap?.isNativePlatform?.()) return null;
-  try {
-    const plugin = (cap.Plugins?.SmsInbox ?? cap.Plugins?.SMSInboxReader) as
-      | {
-          checkPermissions?: () => Promise<{ sms?: string }>;
-          requestPermissions?: () => Promise<{ sms?: string }>;
-          getSmsList?: (opts: unknown) => Promise<{
-            smsList?: Array<{ address?: string; body?: string; date?: number }>;
-          }>;
-        }
-      | undefined;
-    if (!plugin?.getSmsList) return null;
-    const perm = await plugin.checkPermissions?.();
-    if (perm && perm.sms !== "granted") {
-      const req = await plugin.requestPermissions?.();
-      if (req?.sms !== "granted") return null;
-    }
-    // Scan up to a year back / 5k messages — plenty for a full history sync.
-    const since = Date.now() - 365 * 24 * 60 * 60 * 1000;
-    const res = await plugin.getSmsList({
-      filter: { minDate: since, maxCount: 5000 },
-    });
-    const list = res?.smsList ?? [];
-    // First-pass cheap filter: keep only messages that look like they came
-    // from a bank/UPI sender OR contain a transactional hint. Full parsing
-    // and OTP/promo rejection happens in parseUpiText.
-    return list
-      .filter((m) => {
-        const addr = m.address ?? "";
-        const body = m.body ?? "";
-        return (
-          (BANK_SENDERS.test(addr) || TXN_HINT.test(body)) && !NOISE_RE.test(body)
-        );
-      })
-      .map((m) => `${m.address ?? ""}: ${m.body ?? ""}`)
-      .join("\n\n");
-  } catch {
-    return null;
-  }
-}
 
 function UpiPanel() {
   const qc = useQueryClient();
@@ -1440,7 +1273,6 @@ function UpiPanel() {
 }
 
 function AIInsightsPanel() {
-  const run = useServerFn(generateInsights);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [insights, setInsights] = useState<{ title: string; body: string; tone: "positive" | "neutral" | "warning" }[]>([]);
@@ -1450,8 +1282,8 @@ function AIInsightsPanel() {
     setLoading(true);
     setError(null);
     try {
-      const r = await run({ data: undefined as never });
-      setInsights(r.insights);
+      const list = await fetchInsights();
+      setInsights(list);
       setLastRun(new Date().toLocaleTimeString());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to generate insights");
@@ -1531,7 +1363,6 @@ function AIInsightsPanel() {
 }
 
 function HomeAIInsights({ onOpen }: { onOpen: () => void }) {
-  const run = useServerFn(generateInsights);
   const [loading, setLoading] = useState(true);
   const [top, setTop] = useState<{ title: string; body: string; tone: "positive" | "neutral" | "warning" } | null>(null);
   const [count, setCount] = useState(0);
@@ -1539,9 +1370,9 @@ function HomeAIInsights({ onOpen }: { onOpen: () => void }) {
   async function refresh() {
     setLoading(true);
     try {
-      const r = await run({ data: undefined as never });
-      setTop(r.insights[0] ?? null);
-      setCount(r.insights.length);
+      const list = await fetchInsights();
+      setTop(list[0] ?? null);
+      setCount(list.length);
     } catch {
       setTop(null);
     } finally {
@@ -1598,66 +1429,106 @@ function isNativeAndroid(): boolean {
   return !!w.Capacitor?.isNativePlatform?.() && w.Capacitor?.getPlatform?.() === "android";
 }
 
-async function ingestParsed(fresh: ParsedSms[]): Promise<number> {
-  if (fresh.length === 0) return 0;
-  const { data: u } = await supabase.auth.getUser();
-  const rows = fresh.map((p) => ({
-    user_id: u.user!.id,
-    amount: p.amount,
-    direction: p.direction,
-    counterparty: p.counterparty,
-    upi_id: p.upi_id,
-    note: p.raw,
-    category: "other" as UpiCategory,
-    occurred_at: p.occurred_at,
-  }));
-  const { error } = await supabase.from("upi_transactions" as never).insert(rows as never);
-  if (error) throw error;
-  return rows.length;
-}
-
 // Attach a background listener on native so new SMS ingest automatically.
-async function attachNativeSmsListener(onImport: (count: number) => void, existingHashes: Set<string>) {
+async function attachNativeSmsListener(onImport: (count: number) => void) {
   if (typeof window === "undefined") return () => {};
   const w = window as unknown as { Capacitor?: { Plugins?: Record<string, unknown> } };
   const plugin = (w.Capacitor?.Plugins?.SmsInbox ?? w.Capacitor?.Plugins?.SMSInboxReader) as
-    | { addListener?: (event: string, cb: (msg: { address?: string; body?: string }) => void) => Promise<{ remove: () => Promise<void> }> }
+    | { addListener?: (event: string, cb: (msg: { address?: string; body?: string; date?: number }) => void) => Promise<{ remove: () => Promise<void> }> }
     | undefined;
-  if (!plugin?.addListener) return () => {};
+  if (!plugin?.addListener) {
+    ilog("sms", "live listener unavailable (plugin missing)");
+    return () => {};
+  }
   const sub = await plugin.addListener("smsReceived", async (msg) => {
-    const body = `${msg.address ?? ""}: ${msg.body ?? ""}`;
-    const parsed = parseSmsBatch(body).filter((p) => !existingHashes.has(p.hash));
-    if (parsed.length) {
-      const n = await ingestParsed(parsed);
-      parsed.forEach((p) => existingHashes.add(p.hash));
-      onImport(n);
+    ilog("sms", `live SMS received from ${msg.address ?? "unknown"}`);
+    const { parsed, failed } = parseMessages(
+      [{ address: msg.address, body: msg.body, date: msg.date ?? Date.now() }],
+      "sms",
+    );
+    if (failed) ilog("parse", `live SMS parse failures: ${failed}`);
+    if (!parsed.length) return;
+    try {
+      const { inserted } = await ingestTransactions(parsed);
+      if (inserted > 0) onImport(inserted);
+    } catch (e) {
+      ilog("db", `live SMS write failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   });
+  ilog("sms", "live SMS listener attached");
   return () => { void sub.remove(); };
+}
+
+// Attach Android notification-access listener (PhonePe / GPay / Paytm / BHIM / bank apps).
+async function attachNotificationListener(onImport: (count: number) => void) {
+  return subscribeNotifications(async (n) => {
+    const text = [n.title ?? "", n.text ?? ""].filter(Boolean).join(" — ");
+    ilog("notification", `notification from ${n.package ?? "unknown"}`, text.slice(0, 120));
+    const parsed = parseTransactionText(text, {
+      source: "notification",
+      sender: n.package ?? "",
+      timestamp: n.time ?? Date.now(),
+    });
+    if (!parsed) {
+      ilog("parse", "notification did not look like a transaction");
+      return;
+    }
+    try {
+      const { inserted, skipped } = await ingestTransactions([parsed]);
+      ilog("notification", `imported ${inserted}, duplicates skipped ${skipped}`);
+      if (inserted > 0) onImport(inserted);
+    } catch (e) {
+      ilog("db", `notification write failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  });
 }
 
 function AutoImportCard({ existing, onImported }: { existing: UpiTxn[]; onImported: () => void }) {
   const [status, setStatus] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [enabled, setEnabled] = useState(false);
+  const [notifGranted, setNotifGranted] = useState(false);
   const native = isNativeAndroid();
 
-  const existingHashes = useMemo(() => {
-    const s = new Set<string>();
-    for (const t of existing) s.add(hashOf(t.direction, Number(t.amount), t.counterparty, t.occurred_at));
-    return s;
-  }, [existing]);
+  // Existing-row count is only used for status copy — the database's unique
+  // (user_id, dedupe_key) index is what actually prevents duplicates.
+  const existingCount = existing.length;
 
-  // Re-attach background listener when enabled + hashes update.
+  // Live SMS listener.
   useEffect(() => {
     if (!enabled || !native) return;
     let cleanup: (() => void) | undefined;
     void attachNativeSmsListener((n) => {
       setStatus(`Auto-imported ${n} new transaction${n === 1 ? "" : "s"} from a fresh SMS.`);
       onImported();
-    }, existingHashes).then((fn) => { cleanup = fn; });
+    }).then((fn) => { cleanup = fn; });
     return () => { cleanup?.(); };
-  }, [enabled, native, existingHashes, onImported]);
+  }, [enabled, native, onImported]);
+
+  // Notification-access listener + permission state.
+  useEffect(() => {
+    if (!native) return;
+    let cleanup: (() => void) | undefined;
+    let cancelled = false;
+    void (async () => {
+      const granted = await hasNotificationAccess();
+      if (cancelled) return;
+      setNotifGranted(granted);
+      ilog("perm", `notification access ${granted ? "granted" : "not granted"}`);
+      if (!granted) return;
+      cleanup = await attachNotificationListener((n) => {
+        setStatus(`Auto-imported ${n} transaction${n === 1 ? "" : "s"} from a payment notification.`);
+        onImported();
+      });
+    })();
+    const onFocus = () => { void hasNotificationAccess().then(setNotifGranted); };
+    window.addEventListener("focus", onFocus);
+    return () => {
+      cancelled = true;
+      cleanup?.();
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [native, onImported]);
 
   // First-launch auto-request on Android: kick off the permission dialog +
   // full inbox scan the first time the user opens the app. If they deny,
@@ -1668,37 +1539,53 @@ function AutoImportCard({ existing, onImported }: { existing: UpiTxn[]; onImport
     const KEY = "vairagya.autoImportBootstrapped";
     if (window.localStorage.getItem(KEY)) return;
     window.localStorage.setItem(KEY, "1");
+    ilog("sms", "first launch — bootstrapping automatic import");
     void handleEnable();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [native]);
-
 
   async function handleEnable() {
     setBusy(true);
     setStatus("Requesting SMS permission…");
     try {
-      const dump = await tryReadNativeSms();
-      if (dump === null) {
-        setStatus("");
+      const granted = await requestSmsPermission();
+      ilog("perm", `SMS permission ${granted ? "granted" : "denied"}`);
+      if (!granted) {
+        setStatus("SMS permission denied. Grant it to import transactions automatically.");
         setEnabled(false);
         return;
       }
-      const parsed = parseSmsBatch(dump);
-      const fresh = parsed.filter((p) => !existingHashes.has(p.hash));
-      const n = await ingestParsed(fresh);
+
+      setStatus("Scanning your entire inbox…");
+      const messages = await readAllSms();
+      ilog("sms", `scanned ${messages.length} SMS from inbox`);
+
+      const { parsed, failed } = parseMessages(messages, "sms");
+      ilog("parse", `detected ${parsed.length} transaction(s), ${failed} parse failure(s)`);
+
+      const { inserted, skipped } = await ingestTransactions(parsed);
+      ilog("db", `saved ${inserted} new transaction(s), skipped ${skipped} duplicate(s)`);
+
       setEnabled(true);
       setStatus(
-        n > 0
-          ? `Imported ${n} transactions from your inbox. New SMS will now sync automatically in the background.`
-          : `Your inbox is up to date. New SMS will sync automatically in the background.`,
+        inserted > 0
+          ? `Imported ${inserted} transaction${inserted === 1 ? "" : "s"} from ${messages.length} messages. New SMS now sync automatically.`
+          : `Your inbox is up to date (${existingCount} transactions tracked). New SMS sync automatically.`,
       );
       onImported();
     } catch (e) {
+      ilog("sms", `import failed: ${e instanceof Error ? e.message : String(e)}`);
       setStatus(`Failed: ${e instanceof Error ? e.message : String(e)}`);
       setEnabled(false);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleNotificationAccess() {
+    ilog("perm", "opening notification access settings");
+    await requestNotificationAccess();
+    setStatus("Enable “Vairagya transaction import” in the list, then come back.");
   }
 
   // ── Web fallback: no paste UI. Honest explanation + install instructions. ──
@@ -1724,8 +1611,8 @@ function AutoImportCard({ existing, onImported }: { existing: UpiTxn[]; onImport
             <li>Install the Varaigya Android build (Capacitor wrapper).</li>
             <li>Tap <span className="text-purple-100 font-medium">Enable Automatic Import</span> once.</li>
             <li>Android shows the SMS permission dialog — grant it.</li>
-            <li>Your last 90 days of bank / UPI SMS scan and import in seconds.</li>
-            <li>Every new transaction SMS syncs silently in the background.</li>
+            <li>Your full bank / UPI SMS history scans and imports in seconds.</li>
+            <li>Every new transaction SMS and payment notification syncs in the background.</li>
           </ol>
         </div>
 
@@ -1770,10 +1657,19 @@ function AutoImportCard({ existing, onImported }: { existing: UpiTxn[]; onImport
         {busy ? "Scanning inbox…" : enabled ? "Enabled — background sync active" : "Enable Automatic Import"}
       </button>
 
+      <button
+        onClick={handleNotificationAccess}
+        disabled={notifGranted}
+        className="va-input w-full rounded-xl py-3 text-[13px] font-semibold text-purple-100 flex items-center justify-center gap-2 disabled:opacity-60"
+      >
+        {notifGranted ? <Sparkles size={15} className="text-emerald-300" /> : <BellRing size={15} />}
+        {notifGranted ? "Payment notifications connected" : "Also import payment app notifications"}
+      </button>
+
       {status && <p className="text-[11px] text-purple-200/70 leading-relaxed">{status}</p>}
 
       <p className="text-[10.5px] text-purple-200/50 leading-relaxed">
-        Varaigya reads only bank/UPI SMS bodies to extract amount, party, and time. OTPs, PINs, and login codes are ignored. Duplicates are detected automatically.
+        Varaigya reads only bank/UPI SMS and payment notifications to extract amount, party, reference and time. OTPs, PINs, and login codes are ignored. Duplicates are detected automatically.
       </p>
     </div>
   );

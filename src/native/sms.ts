@@ -58,6 +58,17 @@ export async function readRecentSms(days = 90, maxCount = 500): Promise<SmsMessa
   return smsList ?? [];
 }
 
+/**
+ * Scan the ENTIRE SMS inbox (no date cut-off). Used right after the SMS
+ * permission is granted so the user's full bank/UPI history is imported.
+ */
+export async function readAllSms(maxCount = 20000): Promise<SmsMessage[]> {
+  const p = getPlugin();
+  if (!p) return [];
+  const { smsList } = await p.getSmsList({ filter: { minDate: 0, maxCount } });
+  return smsList ?? [];
+}
+
 export async function subscribeIncomingSms(
   handler: (msg: SmsMessage) => void,
 ): Promise<() => void> {
