@@ -1531,7 +1531,6 @@ function AIInsightsPanel() {
 }
 
 function HomeAIInsights({ onOpen }: { onOpen: () => void }) {
-  const run = useServerFn(generateInsights);
   const [loading, setLoading] = useState(true);
   const [top, setTop] = useState<{ title: string; body: string; tone: "positive" | "neutral" | "warning" } | null>(null);
   const [count, setCount] = useState(0);
@@ -1539,9 +1538,9 @@ function HomeAIInsights({ onOpen }: { onOpen: () => void }) {
   async function refresh() {
     setLoading(true);
     try {
-      const r = await run({ data: undefined as never });
-      setTop(r.insights[0] ?? null);
-      setCount(r.insights.length);
+      const list = await fetchInsights();
+      setTop(list[0] ?? null);
+      setCount(list.length);
     } catch {
       setTop(null);
     } finally {
