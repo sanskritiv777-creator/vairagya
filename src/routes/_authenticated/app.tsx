@@ -8,8 +8,16 @@ import {
   Smartphone, Brain, RefreshCw, TrendingUp, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useServerFn } from "@tanstack/react-start";
-import { generateInsights } from "@/lib/insights.functions";
+import { parseMessages, parseTransactionText } from "@/lib/txn-parser";
+import { ingestTransactions } from "@/lib/ingest";
+import { ilog } from "@/lib/ingest-log";
+import { fetchInsights } from "@/lib/insights-client";
+import { requestSmsPermission, readAllSms } from "@/native/sms";
+import {
+  hasNotificationAccess,
+  requestNotificationAccess,
+  subscribeNotifications,
+} from "@/native/notification-listener";
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({
