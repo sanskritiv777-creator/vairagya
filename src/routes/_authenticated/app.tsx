@@ -1598,66 +1598,106 @@ function isNativeAndroid(): boolean {
   return !!w.Capacitor?.isNativePlatform?.() && w.Capacitor?.getPlatform?.() === "android";
 }
 
-async function ingestParsed(fresh: ParsedSms[]): Promise<number> {
-  if (fresh.length === 0) return 0;
-  const { data: u } = await supabase.auth.getUser();
-  const rows = fresh.map((p) => ({
-    user_id: u.user!.id,
-    amount: p.amount,
-    direction: p.direction,
-    counterparty: p.counterparty,
-    upi_id: p.upi_id,
-    note: p.raw,
-    category: "other" as UpiCategory,
-    occurred_at: p.occurred_at,
-  }));
-  const { error } = await supabase.from("upi_transactions" as never).insert(rows as never);
-  if (error) throw error;
-  return rows.length;
-}
-
 // Attach a background listener on native so new SMS ingest automatically.
-async function attachNativeSmsListener(onImport: (count: number) => void, existingHashes: Set<string>) {
+async function attachNativeSmsListener(onImport: (count: number) => void) {
   if (typeof window === "undefined") return () => {};
   const w = window as unknown as { Capacitor?: { Plugins?: Record<string, unknown> } };
   const plugin = (w.Capacitor?.Plugins?.SmsInbox ?? w.Capacitor?.Plugins?.SMSInboxReader) as
-    | { addListener?: (event: string, cb: (msg: { address?: string; body?: string }) => void) => Promise<{ remove: () => Promise<void> }> }
+    | { addListener?: (event: string, cb: (msg: { address?: string; body?: string; date?: number }) => void) => Promise<{ remove: () => Promise<void> }> }
     | undefined;
-  if (!plugin?.addListener) return () => {};
+  if (!plugin?.addListener) {
+    ilog("sms", "live listener unavailable (plugin missing)");
+    return () => {};
+  }
   const sub = await plugin.addListener("smsReceived", async (msg) => {
-    const body = `${msg.address ?? ""}: ${msg.body ?? ""}`;
-    const parsed = parseSmsBatch(body).filter((p) => !existingHashes.has(p.hash));
-    if (parsed.length) {
-      const n = await ingestParsed(parsed);
-      parsed.forEach((p) => existingHashes.add(p.hash));
-      onImport(n);
+    ilog("sms", `live SMS received from ${msg.address ?? "unknown"}`);
+    const { parsed, failed } = parseMessages(
+      [{ address: msg.address, body: msg.body, date: msg.date ?? Date.now() }],
+      "sms",
+    );
+    if (failed) ilog("parse", `live SMS parse failures: ${failed}`);
+    if (!parsed.length) return;
+    try {
+      const { inserted } = await ingestTransactions(parsed);
+      if (inserted > 0) onImport(inserted);
+    } catch (e) {
+      ilog("db", `live SMS write failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   });
+  ilog("sms", "live SMS listener attached");
   return () => { void sub.remove(); };
+}
+
+// Attach Android notification-access listener (PhonePe / GPay / Paytm / BHIM / bank apps).
+async function attachNotificationListener(onImport: (count: number) => void) {
+  return subscribeNotifications(async (n) => {
+    const text = [n.title ?? "", n.text ?? ""].filter(Boolean).join(" — ");
+    ilog("notification", `notification from ${n.package ?? "unknown"}`, text.slice(0, 120));
+    const parsed = parseTransactionText(text, {
+      source: "notification",
+      sender: n.package ?? "",
+      timestamp: n.time ?? Date.now(),
+    });
+    if (!parsed) {
+      ilog("parse", "notification did not look like a transaction");
+      return;
+    }
+    try {
+      const { inserted, skipped } = await ingestTransactions([parsed]);
+      ilog("notification", `imported ${inserted}, duplicates skipped ${skipped}`);
+      if (inserted > 0) onImport(inserted);
+    } catch (e) {
+      ilog("db", `notification write failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  });
 }
 
 function AutoImportCard({ existing, onImported }: { existing: UpiTxn[]; onImported: () => void }) {
   const [status, setStatus] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [enabled, setEnabled] = useState(false);
+  const [notifGranted, setNotifGranted] = useState(false);
   const native = isNativeAndroid();
 
-  const existingHashes = useMemo(() => {
-    const s = new Set<string>();
-    for (const t of existing) s.add(hashOf(t.direction, Number(t.amount), t.counterparty, t.occurred_at));
-    return s;
-  }, [existing]);
+  // Existing-row count is only used for status copy — the database's unique
+  // (user_id, dedupe_key) index is what actually prevents duplicates.
+  const existingCount = existing.length;
 
-  // Re-attach background listener when enabled + hashes update.
+  // Live SMS listener.
   useEffect(() => {
     if (!enabled || !native) return;
     let cleanup: (() => void) | undefined;
     void attachNativeSmsListener((n) => {
       setStatus(`Auto-imported ${n} new transaction${n === 1 ? "" : "s"} from a fresh SMS.`);
       onImported();
-    }, existingHashes).then((fn) => { cleanup = fn; });
+    }).then((fn) => { cleanup = fn; });
     return () => { cleanup?.(); };
-  }, [enabled, native, existingHashes, onImported]);
+  }, [enabled, native, onImported]);
+
+  // Notification-access listener + permission state.
+  useEffect(() => {
+    if (!native) return;
+    let cleanup: (() => void) | undefined;
+    let cancelled = false;
+    void (async () => {
+      const granted = await hasNotificationAccess();
+      if (cancelled) return;
+      setNotifGranted(granted);
+      ilog("perm", `notification access ${granted ? "granted" : "not granted"}`);
+      if (!granted) return;
+      cleanup = await attachNotificationListener((n) => {
+        setStatus(`Auto-imported ${n} transaction${n === 1 ? "" : "s"} from a payment notification.`);
+        onImported();
+      });
+    })();
+    const onFocus = () => { void hasNotificationAccess().then(setNotifGranted); };
+    window.addEventListener("focus", onFocus);
+    return () => {
+      cancelled = true;
+      cleanup?.();
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [native, onImported]);
 
   // First-launch auto-request on Android: kick off the permission dialog +
   // full inbox scan the first time the user opens the app. If they deny,
@@ -1668,37 +1708,53 @@ function AutoImportCard({ existing, onImported }: { existing: UpiTxn[]; onImport
     const KEY = "vairagya.autoImportBootstrapped";
     if (window.localStorage.getItem(KEY)) return;
     window.localStorage.setItem(KEY, "1");
+    ilog("sms", "first launch — bootstrapping automatic import");
     void handleEnable();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [native]);
-
 
   async function handleEnable() {
     setBusy(true);
     setStatus("Requesting SMS permission…");
     try {
-      const dump = await tryReadNativeSms();
-      if (dump === null) {
-        setStatus("");
+      const granted = await requestSmsPermission();
+      ilog("perm", `SMS permission ${granted ? "granted" : "denied"}`);
+      if (!granted) {
+        setStatus("SMS permission denied. Grant it to import transactions automatically.");
         setEnabled(false);
         return;
       }
-      const parsed = parseSmsBatch(dump);
-      const fresh = parsed.filter((p) => !existingHashes.has(p.hash));
-      const n = await ingestParsed(fresh);
+
+      setStatus("Scanning your entire inbox…");
+      const messages = await readAllSms();
+      ilog("sms", `scanned ${messages.length} SMS from inbox`);
+
+      const { parsed, failed } = parseMessages(messages, "sms");
+      ilog("parse", `detected ${parsed.length} transaction(s), ${failed} parse failure(s)`);
+
+      const { inserted, skipped } = await ingestTransactions(parsed);
+      ilog("db", `saved ${inserted} new transaction(s), skipped ${skipped} duplicate(s)`);
+
       setEnabled(true);
       setStatus(
-        n > 0
-          ? `Imported ${n} transactions from your inbox. New SMS will now sync automatically in the background.`
-          : `Your inbox is up to date. New SMS will sync automatically in the background.`,
+        inserted > 0
+          ? `Imported ${inserted} transaction${inserted === 1 ? "" : "s"} from ${messages.length} messages. New SMS now sync automatically.`
+          : `Your inbox is up to date (${existingCount} transactions tracked). New SMS sync automatically.`,
       );
       onImported();
     } catch (e) {
+      ilog("sms", `import failed: ${e instanceof Error ? e.message : String(e)}`);
       setStatus(`Failed: ${e instanceof Error ? e.message : String(e)}`);
       setEnabled(false);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleNotificationAccess() {
+    ilog("perm", "opening notification access settings");
+    await requestNotificationAccess();
+    setStatus("Enable “Vairagya transaction import” in the list, then come back.");
   }
 
   // ── Web fallback: no paste UI. Honest explanation + install instructions. ──
@@ -1724,8 +1780,8 @@ function AutoImportCard({ existing, onImported }: { existing: UpiTxn[]; onImport
             <li>Install the Varaigya Android build (Capacitor wrapper).</li>
             <li>Tap <span className="text-purple-100 font-medium">Enable Automatic Import</span> once.</li>
             <li>Android shows the SMS permission dialog — grant it.</li>
-            <li>Your last 90 days of bank / UPI SMS scan and import in seconds.</li>
-            <li>Every new transaction SMS syncs silently in the background.</li>
+            <li>Your full bank / UPI SMS history scans and imports in seconds.</li>
+            <li>Every new transaction SMS and payment notification syncs in the background.</li>
           </ol>
         </div>
 
@@ -1770,10 +1826,19 @@ function AutoImportCard({ existing, onImported }: { existing: UpiTxn[]; onImport
         {busy ? "Scanning inbox…" : enabled ? "Enabled — background sync active" : "Enable Automatic Import"}
       </button>
 
+      <button
+        onClick={handleNotificationAccess}
+        disabled={notifGranted}
+        className="va-input w-full rounded-xl py-3 text-[13px] font-semibold text-purple-100 flex items-center justify-center gap-2 disabled:opacity-60"
+      >
+        {notifGranted ? <Sparkles size={15} className="text-emerald-300" /> : <BellRing size={15} />}
+        {notifGranted ? "Payment notifications connected" : "Also import payment app notifications"}
+      </button>
+
       {status && <p className="text-[11px] text-purple-200/70 leading-relaxed">{status}</p>}
 
       <p className="text-[10.5px] text-purple-200/50 leading-relaxed">
-        Varaigya reads only bank/UPI SMS bodies to extract amount, party, and time. OTPs, PINs, and login codes are ignored. Duplicates are detected automatically.
+        Varaigya reads only bank/UPI SMS and payment notifications to extract amount, party, reference and time. OTPs, PINs, and login codes are ignored. Duplicates are detected automatically.
       </p>
     </div>
   );
