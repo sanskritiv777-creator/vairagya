@@ -1440,7 +1440,6 @@ function UpiPanel() {
 }
 
 function AIInsightsPanel() {
-  const run = useServerFn(generateInsights);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [insights, setInsights] = useState<{ title: string; body: string; tone: "positive" | "neutral" | "warning" }[]>([]);
@@ -1450,8 +1449,8 @@ function AIInsightsPanel() {
     setLoading(true);
     setError(null);
     try {
-      const r = await run({ data: undefined as never });
-      setInsights(r.insights);
+      const list = await fetchInsights();
+      setInsights(list);
       setLastRun(new Date().toLocaleTimeString());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to generate insights");
