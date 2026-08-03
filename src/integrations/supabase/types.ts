@@ -77,37 +77,52 @@ export type Database = {
       upi_transactions: {
         Row: {
           amount: number
+          balance: number | null
+          bank: string | null
           category: Database["public"]["Enums"]["upi_category"]
           counterparty: string
           created_at: string
+          dedupe_key: string | null
           direction: string
           id: string
           note: string | null
           occurred_at: string
+          ref_id: string | null
+          source: string
           upi_id: string | null
           user_id: string
         }
         Insert: {
           amount: number
+          balance?: number | null
+          bank?: string | null
           category?: Database["public"]["Enums"]["upi_category"]
           counterparty: string
           created_at?: string
+          dedupe_key?: string | null
           direction: string
           id?: string
           note?: string | null
           occurred_at?: string
+          ref_id?: string | null
+          source?: string
           upi_id?: string | null
           user_id: string
         }
         Update: {
           amount?: number
+          balance?: number | null
+          bank?: string | null
           category?: Database["public"]["Enums"]["upi_category"]
           counterparty?: string
           created_at?: string
+          dedupe_key?: string | null
           direction?: string
           id?: string
           note?: string | null
           occurred_at?: string
+          ref_id?: string | null
+          source?: string
           upi_id?: string | null
           user_id?: string
         }
