@@ -8,16 +8,10 @@ import {
   Smartphone, Brain, RefreshCw, TrendingUp, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { parseMessages, parseTransactionText } from "@/lib/txn-parser";
-import { ingestTransactions } from "@/lib/ingest";
 import { ilog } from "@/lib/ingest-log";
 import { fetchInsights } from "@/lib/insights-client";
-import { requestSmsPermission, readAllSms } from "@/native/sms";
-import {
-  hasNotificationAccess,
-  requestNotificationAccess,
-  subscribeNotifications,
-} from "@/native/notification-listener";
+import { useAutoImport, isNativeAndroidRuntime } from "@/hooks/use-auto-import";
+type AutoImport = ReturnType<typeof useAutoImport>;
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({
