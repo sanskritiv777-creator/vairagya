@@ -41,6 +41,18 @@ export function isSmsSupported(): boolean {
   return getPlugin() !== null;
 }
 
+/** Non-prompting check: is READ_SMS already granted? */
+export async function checkSmsPermission(): Promise<boolean> {
+  const p = getPlugin();
+  if (!p) return false;
+  try {
+    const current = await p.checkPermissions();
+    return current.sms === "granted";
+  } catch {
+    return false;
+  }
+}
+
 export async function requestSmsPermission(): Promise<boolean> {
   const p = getPlugin();
   if (!p) return false;

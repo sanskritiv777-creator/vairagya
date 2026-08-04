@@ -8,16 +8,10 @@ import {
   Smartphone, Brain, RefreshCw, TrendingUp, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { parseMessages, parseTransactionText } from "@/lib/txn-parser";
-import { ingestTransactions } from "@/lib/ingest";
 import { ilog } from "@/lib/ingest-log";
 import { fetchInsights } from "@/lib/insights-client";
-import { requestSmsPermission, readAllSms } from "@/native/sms";
-import {
-  hasNotificationAccess,
-  requestNotificationAccess,
-  subscribeNotifications,
-} from "@/native/notification-listener";
+import { useAutoImport, isNativeAndroidRuntime } from "@/hooks/use-auto-import";
+type AutoImport = ReturnType<typeof useAutoImport>;
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({
@@ -66,6 +60,28 @@ function Dashboard() {
   const qc = useQueryClient();
   const [greeting, setGreeting] = useState("Hello");
   useEffect(() => setGreeting(getGreeting()), []);
+
+  // Automatic transaction import runs from app start, not from a settings sheet.
+  const ai = useAutoImport(() => {
+    void qc.invalidateQueries({ queryKey: ["upi_transactions"] });
+    void qc.invalidateQueries({ queryKey: ["transactions"] });
+  });
+
+  // First run after signup/login: guide the user straight into enabling import.
+  const [onboarding, setOnboarding] = useState(false);
+  useEffect(() => {
+    if (!isNativeAndroidRuntime()) return;
+    if (typeof window === "undefined") return;
+    if (window.localStorage.getItem("vairagya.importOnboarded")) return;
+    setOnboarding(true);
+    ilog("perm", "showing import onboarding");
+  }, []);
+  const finishOnboarding = () => {
+    window.localStorage.setItem("vairagya.importOnboarded", "1");
+    setOnboarding(false);
+  };
+
+
 
   const profileQuery = useQuery({
     queryKey: ["profile"],
@@ -249,7 +265,7 @@ function Dashboard() {
           <button onClick={() => setSheet("menu")} className="w-10 h-10 rounded-full va-glass flex items-center justify-center active:scale-95 transition">
             <Menu size={18} />
           </button>
-          <div className="text-[11px] uppercase tracking-[0.25em] text-purple-200/60">Varaigya · v1</div>
+          <div className="text-[12.5px] uppercase tracking-[0.25em] text-purple-200/60">Varaigya · v1</div>
           <div className="flex items-center gap-2">
             <button onClick={() => setTab("ai")} className="w-10 h-10 rounded-full va-glass flex items-center justify-center relative active:scale-95 transition" aria-label="AI insights">
               <Brain size={17} className="text-fuchsia-200" />
@@ -263,7 +279,7 @@ function Dashboard() {
         </div>
 
         <div className="px-6 pt-6">
-          <p className="text-purple-200/70 text-[13px]">{greeting},</p>
+          <p className="text-purple-200/70 text-[14.5px]">{greeting},</p>
           <h1 className="va-display text-3xl mt-1 truncate">{userName}</h1>
           <p className="va-display text-2xl mt-3 leading-snug">
             You're carrying <span className="text-fuchsia-300">{runwayMonths} months</span><br />of runway.
@@ -276,13 +292,13 @@ function Dashboard() {
             <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-fuchsia-400/30 blur-3xl va-ring" />
             <div className="flex items-center justify-between relative gap-3">
               <div className="min-w-0">
-                <div className="text-purple-200/80 text-[12px] tracking-wide">Safe to spend</div>
+                <div className="text-purple-200/80 text-[13.5px] tracking-wide">Safe to spend</div>
                 <div className="va-display text-[34px] mt-1 leading-none">{currency(safeToSpend)}</div>
               </div>
-              <div className="va-chip rounded-full px-3 py-1 text-[11px] text-purple-100 shrink-0">{taxRate}% set aside</div>
+              <div className="va-chip rounded-full px-3 py-1 text-[12.5px] text-purple-100 shrink-0">{taxRate}% set aside</div>
             </div>
             <div className="va-divider my-4 opacity-60" />
-            <div className="flex items-center justify-between text-[12px] relative">
+            <div className="flex items-center justify-between text-[13.5px] relative">
               <div><div className="text-purple-200/60">Earned</div><div className="va-mono text-purple-50 mt-0.5">{currencyShort(totalIncome)}</div></div>
               <div><div className="text-purple-200/60">Spent</div><div className="va-mono text-purple-50 mt-0.5">{currencyShort(totalExpenses)}</div></div>
               <div><div className="text-purple-200/60">Tax jar</div><div className="va-mono text-fuchsia-200 mt-0.5">{currencyShort(setAside)}</div></div>
@@ -300,7 +316,7 @@ function Dashboard() {
             ].map((q) => (
               <button key={q.label} onClick={q.onClick} className="va-quick rounded-2xl py-3 flex flex-col items-center gap-1.5">
                 <q.icon size={18} className="text-fuchsia-200" />
-                <span className="text-[11px] text-purple-100/80">{q.label}</span>
+                <span className="text-[12.5px] text-purple-100/80">{q.label}</span>
               </button>
             ))}
           </div>
@@ -308,9 +324,9 @@ function Dashboard() {
 
         <div className="px-6 mt-7">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="va-display text-[17px]">Transactions</h2>
+            <h2 className="va-display text-[18px]">Transactions</h2>
             {recent.length > 8 && (
-              <span className="text-[11px] text-purple-200/50">{recent.length} total</span>
+              <span className="text-[12.5px] text-purple-200/50">{recent.length} total</span>
             )}
           </div>
 
@@ -326,7 +342,7 @@ function Dashboard() {
               <div className="w-8 h-8 rounded-lg bg-fuchsia-400/15 text-fuchsia-200 flex items-center justify-center shrink-0">
                 <Smartphone size={14} />
               </div>
-              <p className="text-[12.5px] leading-snug text-purple-100/85 flex-1">
+              <p className="text-[14px] leading-snug text-purple-100/85 flex-1">
                 Connect your UPI to automatically import your transactions.
               </p>
               <ChevronRight size={14} className="text-purple-300/60" />
@@ -335,8 +351,8 @@ function Dashboard() {
 
           {recent.length === 0 ? (
             <div className="va-glass rounded-2xl p-6 text-center">
-              <p className="text-[13px] text-purple-200/70">No transactions yet.</p>
-              <button onClick={() => setSheet("add")} className="mt-3 text-[12.5px] text-fuchsia-300">
+              <p className="text-[14.5px] text-purple-200/70">No transactions yet.</p>
+              <button onClick={() => setSheet("add")} className="mt-3 text-[14px] text-fuchsia-300">
                 Add your first transaction →
               </button>
             </div>
@@ -348,13 +364,13 @@ function Dashboard() {
                     {r.kind === "in" ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13.5px] text-purple-50 truncate flex items-center gap-1.5">
+                    <div className="text-[15px] text-purple-50 truncate flex items-center gap-1.5">
                       {r.label}
                       {r.upi && <span className="text-[9px] px-1.5 py-0.5 rounded bg-fuchsia-500/20 text-fuchsia-200 tracking-wide">UPI</span>}
                     </div>
-                    <div className="text-[11px] text-purple-200/50 truncate">{fmtDate(r.at)} · {r.meta}</div>
+                    <div className="text-[12.5px] text-purple-200/50 truncate">{fmtDate(r.at)} · {r.meta}</div>
                   </div>
-                  <div className={`va-mono text-[13px] shrink-0 ${r.kind === "in" ? "text-emerald-300" : "text-fuchsia-200"}`}>
+                  <div className={`va-mono text-[14.5px] shrink-0 ${r.kind === "in" ? "text-emerald-300" : "text-fuchsia-200"}`}>
                     {r.kind === "in" ? "+" : "−"}{currency(r.amount)}
                   </div>
                 </div>
@@ -369,7 +385,7 @@ function Dashboard() {
             <div className="w-8 h-8 rounded-lg bg-fuchsia-500/20 flex items-center justify-center text-fuchsia-200 shrink-0">
               <Sparkles size={15} />
             </div>
-            <p className="text-[12.5px] leading-relaxed text-purple-100/80">
+            <p className="text-[14px] leading-relaxed text-purple-100/80">
               Next quarterly estimate due in <span className="text-fuchsia-300 font-medium">{daysUntilDue} days</span>. Your tax jar already covers <span className="text-white">{currencyShort(setAside)}</span>.
             </p>
           </div>
@@ -386,6 +402,8 @@ function Dashboard() {
             <DockBtn icon={User} active={tab === "profile"} onClick={() => setTab("profile")} />
           </div>
         </div>
+
+        {onboarding && <ImportOnboarding ai={ai} onDone={finishOnboarding} />}
 
         {tab !== "home" && (
           <SecondarySheet
@@ -428,7 +446,7 @@ function Dashboard() {
               <RemindersPanel nextDue={nextDue} daysUntilDue={daysUntilDue} />
             )}
             {tab === "calc" && <CalculatorPanel />}
-            {tab === "upi" && <UpiPanel />}
+            {tab === "upi" && <UpiPanel ai={ai} />}
             {tab === "ai" && <AIInsightsPanel />}
             {tab === "profile" && (
               <ProfilePanel
@@ -446,8 +464,8 @@ function Dashboard() {
 
         {sheet === "income" && (
           <BottomSheet title="Log income" onClose={() => setSheet(null)}>
-            <input className="va-input w-full rounded-xl px-4 py-3 text-[14px]" placeholder="Source — e.g. Client name" value={newIncome.source} onChange={(e) => setNewIncome({ ...newIncome, source: e.target.value })} />
-            <input className="va-input va-mono w-full rounded-xl px-4 py-3 text-[14px]" placeholder="Amount" type="number" inputMode="decimal" value={newIncome.amount} onChange={(e) => setNewIncome({ ...newIncome, amount: e.target.value })} />
+            <input className="va-input w-full rounded-xl px-4 py-3 text-[15.5px]" placeholder="Source — e.g. Client name" value={newIncome.source} onChange={(e) => setNewIncome({ ...newIncome, source: e.target.value })} />
+            <input className="va-input va-mono w-full rounded-xl px-4 py-3 text-[15.5px]" placeholder="Amount" type="number" inputMode="decimal" value={newIncome.amount} onChange={(e) => setNewIncome({ ...newIncome, amount: e.target.value })} />
             <button
               disabled={addTxn.isPending || !newIncome.source || !newIncome.amount}
               onClick={() => {
@@ -456,7 +474,7 @@ function Dashboard() {
                   { onSuccess: () => { setNewIncome({ source: "", amount: "" }); setSheet(null); } },
                 );
               }}
-              className="va-fab w-full rounded-xl py-3 text-[14px] font-semibold text-white active:scale-[0.98] transition disabled:opacity-60 flex items-center justify-center gap-2"
+              className="va-fab w-full rounded-xl py-3 text-[15.5px] font-semibold text-white active:scale-[0.98] transition disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {addTxn.isPending ? <Loader2 size={16} className="animate-spin" /> : "Add income"}
             </button>
@@ -465,11 +483,11 @@ function Dashboard() {
 
         {sheet === "expense" && (
           <BottomSheet title="Log expense" onClose={() => setSheet(null)}>
-            <input className="va-input w-full rounded-xl px-4 py-3 text-[14px]" placeholder="What was it for?" value={newExpense.label} onChange={(e) => setNewExpense({ ...newExpense, label: e.target.value })} />
-            <input className="va-input va-mono w-full rounded-xl px-4 py-3 text-[14px]" placeholder="Amount" type="number" inputMode="decimal" value={newExpense.amount} onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })} />
+            <input className="va-input w-full rounded-xl px-4 py-3 text-[15.5px]" placeholder="What was it for?" value={newExpense.label} onChange={(e) => setNewExpense({ ...newExpense, label: e.target.value })} />
+            <input className="va-input va-mono w-full rounded-xl px-4 py-3 text-[15.5px]" placeholder="Amount" type="number" inputMode="decimal" value={newExpense.amount} onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })} />
             <div className="flex gap-2 flex-wrap">
               {["Software", "Office", "Meals", "Travel", "Equipment", "Other"].map((c) => (
-                <button key={c} onClick={() => setNewExpense({ ...newExpense, category: c })} className="px-3 py-1.5 rounded-full text-[12px] transition"
+                <button key={c} onClick={() => setNewExpense({ ...newExpense, category: c })} className="px-3 py-1.5 rounded-full text-[13.5px] transition"
                   style={{
                     background: newExpense.category === c ? "linear-gradient(135deg,#C084FC,#7C3AED)" : "rgba(168,85,247,0.12)",
                     border: "1px solid rgba(216,180,254,0.25)",
@@ -485,7 +503,7 @@ function Dashboard() {
                   { onSuccess: () => { setNewExpense({ label: "", amount: "", category: "Software" }); setSheet(null); } },
                 );
               }}
-              className="va-fab w-full rounded-xl py-3 text-[14px] font-semibold text-white active:scale-[0.98] transition disabled:opacity-60 flex items-center justify-center gap-2"
+              className="va-fab w-full rounded-xl py-3 text-[15.5px] font-semibold text-white active:scale-[0.98] transition disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {addTxn.isPending ? <Loader2 size={16} className="animate-spin" /> : "Add expense"}
             </button>
@@ -494,9 +512,9 @@ function Dashboard() {
 
         {sheet === "transfer" && (
           <BottomSheet title="Log transfer" onClose={() => setSheet(null)}>
-            <p className="text-[12px] text-purple-200/60 -mt-1">Move money between your own accounts. Doesn't affect income or expenses.</p>
-            <input className="va-input w-full rounded-xl px-4 py-3 text-[14px]" placeholder="From → To (e.g. Bank → UPI)" value={newTransfer.label} onChange={(e) => setNewTransfer({ ...newTransfer, label: e.target.value })} />
-            <input className="va-input va-mono w-full rounded-xl px-4 py-3 text-[14px]" placeholder="Amount" type="number" inputMode="decimal" value={newTransfer.amount} onChange={(e) => setNewTransfer({ ...newTransfer, amount: e.target.value })} />
+            <p className="text-[13.5px] text-purple-200/60 -mt-1">Move money between your own accounts. Doesn't affect income or expenses.</p>
+            <input className="va-input w-full rounded-xl px-4 py-3 text-[15.5px]" placeholder="From → To (e.g. Bank → UPI)" value={newTransfer.label} onChange={(e) => setNewTransfer({ ...newTransfer, label: e.target.value })} />
+            <input className="va-input va-mono w-full rounded-xl px-4 py-3 text-[15.5px]" placeholder="Amount" type="number" inputMode="decimal" value={newTransfer.amount} onChange={(e) => setNewTransfer({ ...newTransfer, amount: e.target.value })} />
             <button
               disabled={addTxn.isPending || !newTransfer.label || !newTransfer.amount}
               onClick={() => {
@@ -505,7 +523,7 @@ function Dashboard() {
                   { onSuccess: () => { setNewTransfer({ label: "", amount: "" }); setSheet(null); } },
                 );
               }}
-              className="va-fab w-full rounded-xl py-3 text-[14px] font-semibold text-white active:scale-[0.98] transition disabled:opacity-60 flex items-center justify-center gap-2"
+              className="va-fab w-full rounded-xl py-3 text-[15.5px] font-semibold text-white active:scale-[0.98] transition disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {addTxn.isPending ? <Loader2 size={16} className="animate-spin" /> : "Log transfer"}
             </button>
@@ -528,8 +546,8 @@ function Dashboard() {
                   <o.icon size={17} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[14px] text-purple-50">{o.label}</div>
-                  <div className="text-[11.5px] text-purple-200/60 truncate">{o.desc}</div>
+                  <div className="text-[15.5px] text-purple-50">{o.label}</div>
+                  <div className="text-[13px] text-purple-200/60 truncate">{o.desc}</div>
                 </div>
                 <ChevronRight size={14} className="text-purple-300/60" />
               </button>
@@ -553,7 +571,7 @@ function Dashboard() {
             ].map((m) => (
               <button key={m.label} onClick={m.onClick} className="va-glass rounded-xl px-4 py-3 flex items-center gap-3 w-full text-left active:scale-[0.99] transition">
                 <m.icon size={16} className="text-fuchsia-300" />
-                <span className="text-[13.5px] text-purple-50">{m.label}</span>
+                <span className="text-[15px] text-purple-50">{m.label}</span>
                 <ChevronRight size={14} className="ml-auto text-purple-300/60" />
               </button>
             ))}
@@ -583,7 +601,7 @@ function BottomSheet({ title, onClose, children }: { title: string; onClose: () 
       <div className="va-sheet relative w-full max-w-md rounded-t-3xl p-5 pb-8 va-glass" style={{ background: "linear-gradient(180deg, #15092A 0%, #0B0518 100%)" }}>
         <div className="mx-auto w-10 h-1 rounded-full bg-purple-400/30 mb-4" />
         <div className="flex items-center justify-between mb-4">
-          <h3 className="va-display text-[18px] text-white">{title}</h3>
+          <h3 className="va-display text-[19px] text-white">{title}</h3>
           <button onClick={onClose} className="w-8 h-8 rounded-full va-glass flex items-center justify-center"><X size={14} /></button>
         </div>
         <div className="space-y-3">{children}</div>
@@ -617,7 +635,7 @@ function LedgerList({
   emptyText: string;
 }) {
   if (items.length === 0) {
-    return <div className="va-glass rounded-2xl p-6 text-center text-[13px] text-purple-200/70">{emptyText}</div>;
+    return <div className="va-glass rounded-2xl p-6 text-center text-[14.5px] text-purple-200/70">{emptyText}</div>;
   }
   return (
     <div className="va-glass rounded-2xl divide-y divide-purple-500/10">
@@ -627,10 +645,10 @@ function LedgerList({
             {it.positive ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[13.5px] text-purple-50 truncate">{it.primary}</div>
-            <div className="text-[11px] text-purple-200/50">{it.secondary}</div>
+            <div className="text-[15px] text-purple-50 truncate">{it.primary}</div>
+            <div className="text-[12.5px] text-purple-200/50">{it.secondary}</div>
           </div>
-          <div className={`va-mono text-[13px] shrink-0 ${it.positive ? "text-emerald-300" : "text-fuchsia-200"}`}>
+          <div className={`va-mono text-[14.5px] shrink-0 ${it.positive ? "text-emerald-300" : "text-fuchsia-200"}`}>
             {it.positive ? "+" : "−"}{currency(it.amount)}
           </div>
           <button onClick={() => onDelete(it.id)} className="ml-1 w-7 h-7 rounded-lg flex items-center justify-center text-purple-200/40 hover:text-rose-300 hover:bg-rose-500/10 transition shrink-0" aria-label="Delete">
@@ -661,19 +679,19 @@ function ProfilePanel({
   return (
     <div className="space-y-5">
       <div className="va-balance-card rounded-2xl p-4">
-        <div className="text-purple-200/80 text-[12px]">Signed in as</div>
+        <div className="text-purple-200/80 text-[13.5px]">Signed in as</div>
         <div className="va-display text-xl mt-0.5 truncate">{displayName}</div>
         <div className="va-divider my-3 opacity-60" />
-        <div className="text-purple-200/80 text-[12px]">Current runway</div>
+        <div className="text-purple-200/80 text-[13.5px]">Current runway</div>
         <div className="va-display text-3xl mt-0.5">{runway} months</div>
       </div>
 
       <div>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Tax set-aside rate</div>
+        <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Tax set-aside rate</div>
         <div className="va-glass rounded-2xl p-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[13px] text-purple-100">Blended rate</span>
-            <span className="va-mono text-fuchsia-200 text-[15px]">{localRate}%</span>
+            <span className="text-[14.5px] text-purple-100">Blended rate</span>
+            <span className="va-mono text-fuchsia-200 text-[16px]">{localRate}%</span>
           </div>
           <input
             type="range" min={10} max={40} value={localRate}
@@ -682,34 +700,34 @@ function ProfilePanel({
             onTouchEnd={() => onTaxRate(localRate)}
             className="w-full" style={{ accentColor: "#C084FC" }}
           />
-          <div className="flex justify-between text-[10px] text-purple-200/50 mt-1"><span>10%</span><span>40%</span></div>
+          <div className="flex justify-between text-[11.5px] text-purple-200/50 mt-1"><span>10%</span><span>40%</span></div>
         </div>
       </div>
 
       <div>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Monthly base expenses</div>
+        <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Monthly base expenses</div>
         <div className="va-glass rounded-2xl p-4 flex items-center gap-3">
-          <span className="text-purple-200/60 va-mono text-[14px]">$</span>
+          <span className="text-purple-200/60 va-mono text-[15.5px]">$</span>
           <input
             type="number" inputMode="decimal" value={localBase}
             onChange={(e) => setLocalBase(e.target.value)}
             onBlur={() => onBaseExpenses(Number(localBase) || 0)}
-            className="va-input rounded-lg px-3 py-2 flex-1 va-mono text-[14px]"
+            className="va-input rounded-lg px-3 py-2 flex-1 va-mono text-[15.5px]"
           />
         </div>
       </div>
 
       <div>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Reminders</div>
+        <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Reminders</div>
         <div className="va-glass rounded-2xl p-4 flex items-center gap-3">
           <CalendarClock size={16} className="text-fuchsia-300" />
-          <span className="text-[13px] text-purple-100">Quarterly estimate — Sep 15, 2026</span>
+          <span className="text-[14.5px] text-purple-100">Quarterly estimate — Sep 15, 2026</span>
         </div>
       </div>
 
       <button
         onClick={onSignOut}
-        className="w-full va-glass rounded-2xl py-3.5 text-[13.5px] text-rose-300 flex items-center justify-center gap-2 active:scale-[0.99] transition"
+        className="w-full va-glass rounded-2xl py-3.5 text-[15px] text-rose-300 flex items-center justify-center gap-2 active:scale-[0.99] transition"
       >
         <LogOut size={15} /> Sign out
       </button>
@@ -736,7 +754,7 @@ function InsightsPanel({
   return (
     <div className="space-y-5">
       <div className="va-glass rounded-3xl p-5 flex flex-col items-center">
-        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-3">Where your money goes</div>
+        <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-200/60 mb-3">Where your money goes</div>
         <div className="relative w-[200px] h-[200px]">
           <svg viewBox="0 0 180 180" className="w-full h-full -rotate-90">
             <circle cx="90" cy="90" r={R} fill="none" stroke="rgba(168,85,247,0.12)" strokeWidth="18" />
@@ -760,16 +778,16 @@ function InsightsPanel({
             })}
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className="text-[11px] text-purple-200/60">Savings rate</div>
+            <div className="text-[12.5px] text-purple-200/60">Savings rate</div>
             <div className="va-display text-3xl text-white mt-1">{savingsRate}%</div>
-            <div className="text-[10px] text-purple-200/50 mt-0.5">of income</div>
+            <div className="text-[11.5px] text-purple-200/50 mt-0.5">of income</div>
           </div>
         </div>
         <div className="mt-5 w-full space-y-2">
           {segs.map((s) => {
             const pct = Math.round((s.value / total) * 100);
             return (
-              <div key={s.label} className="flex items-center gap-3 text-[12.5px]">
+              <div key={s.label} className="flex items-center gap-3 text-[14px]">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color }} />
                 <span className="text-purple-100/80 flex-1">{s.label}</span>
                 <span className="va-mono text-purple-50">${Math.round(s.value).toLocaleString()}</span>
@@ -782,11 +800,11 @@ function InsightsPanel({
 
       <div className="grid grid-cols-2 gap-3">
         <div className="va-glass rounded-2xl p-4">
-          <div className="text-[11px] text-purple-200/60">Total earned</div>
+          <div className="text-[12.5px] text-purple-200/60">Total earned</div>
           <div className="va-display text-xl text-white mt-1">${Math.round(income).toLocaleString()}</div>
         </div>
         <div className="va-glass rounded-2xl p-4">
-          <div className="text-[11px] text-purple-200/60">Effective tax</div>
+          <div className="text-[12.5px] text-purple-200/60">Effective tax</div>
           <div className="va-display text-xl text-fuchsia-200 mt-1">{taxRate}%</div>
         </div>
       </div>
@@ -863,41 +881,41 @@ function RemindersPanel({ nextDue, daysUntilDue }: { nextDue: string; daysUntilD
   return (
     <div className="space-y-5">
       <div className="va-balance-card rounded-2xl p-4">
-        <div className="flex items-center gap-2 text-purple-200/80 text-[12px]">
+        <div className="flex items-center gap-2 text-purple-200/80 text-[13.5px]">
           <CalendarClock size={14} /> Upcoming tax reminder
         </div>
         <div className="va-display text-2xl mt-1 text-white">In {daysUntilDue} days</div>
-        <div className="text-[12px] text-purple-200/70 mt-0.5">{nextDue}</div>
+        <div className="text-[13.5px] text-purple-200/70 mt-0.5">{nextDue}</div>
       </div>
 
       {permission !== "granted" && typeof Notification !== "undefined" && (
         <button onClick={requestPerm} className="va-glass w-full rounded-2xl p-4 flex items-center gap-3 text-left active:scale-[0.99] transition">
           <BellRing size={16} className="text-fuchsia-300" />
           <div className="flex-1">
-            <div className="text-[13px] text-purple-50">Enable notifications</div>
-            <div className="text-[11px] text-purple-200/60">So your alarms actually ring</div>
+            <div className="text-[14.5px] text-purple-50">Enable notifications</div>
+            <div className="text-[12.5px] text-purple-200/60">So your alarms actually ring</div>
           </div>
           <ChevronRight size={14} className="text-purple-300/60" />
         </button>
       )}
 
       <div>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">New alarm</div>
+        <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">New alarm</div>
         <div className="va-glass rounded-2xl p-4 space-y-3">
           <input
             value={label} onChange={(e) => setLabel(e.target.value)}
             placeholder="Label — e.g. Log today's income"
-            className="va-input w-full rounded-xl px-4 py-2.5 text-[13.5px]"
+            className="va-input w-full rounded-xl px-4 py-2.5 text-[15px]"
           />
           <div className="flex items-center gap-3">
             <input
               type="time" value={time} onChange={(e) => setTime(e.target.value)}
-              className="va-input va-mono rounded-xl px-3 py-2 text-[14px] flex-1"
+              className="va-input va-mono rounded-xl px-3 py-2 text-[15.5px] flex-1"
             />
             <button
               onClick={add}
               disabled={!label.trim()}
-              className="va-fab rounded-xl px-4 py-2 text-[13px] font-semibold text-white active:scale-[0.98] transition disabled:opacity-50"
+              className="va-fab rounded-xl px-4 py-2 text-[14.5px] font-semibold text-white active:scale-[0.98] transition disabled:opacity-50"
             >
               Set alarm
             </button>
@@ -906,9 +924,9 @@ function RemindersPanel({ nextDue, daysUntilDue }: { nextDue: string; daysUntilD
       </div>
 
       <div>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Your alarms</div>
+        <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Your alarms</div>
         {alarms.length === 0 ? (
-          <div className="va-glass rounded-2xl p-6 text-center text-[13px] text-purple-200/70">No alarms set.</div>
+          <div className="va-glass rounded-2xl p-6 text-center text-[14.5px] text-purple-200/70">No alarms set.</div>
         ) : (
           <div className="va-glass rounded-2xl divide-y divide-purple-500/10">
             {alarms.map((a) => (
@@ -917,12 +935,12 @@ function RemindersPanel({ nextDue, daysUntilDue }: { nextDue: string; daysUntilD
                   <BellRing size={15} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[13.5px] text-purple-50 truncate">{a.label}</div>
-                  <div className="va-mono text-[11px] text-purple-200/60">{a.time}</div>
+                  <div className="text-[15px] text-purple-50 truncate">{a.label}</div>
+                  <div className="va-mono text-[12.5px] text-purple-200/60">{a.time}</div>
                 </div>
                 <button
                   onClick={() => setAlarms((list) => list.map((x) => x.id === a.id ? { ...x, enabled: !x.enabled } : x))}
-                  className="text-[11px] px-2.5 py-1 rounded-full va-chip text-purple-100"
+                  className="text-[12.5px] px-2.5 py-1 rounded-full va-chip text-purple-100"
                 >
                   {a.enabled ? "On" : "Off"}
                 </button>
@@ -1002,7 +1020,7 @@ function CalculatorPanel() {
   return (
     <div className="space-y-4">
       <div className="va-balance-card rounded-2xl p-5 min-h-[130px] flex flex-col justify-end">
-        <div className="va-mono text-right text-purple-100/70 text-[14px] break-all min-h-[20px]">
+        <div className="va-mono text-right text-purple-100/70 text-[15.5px] break-all min-h-[20px]">
           {expr || " "}
         </div>
         <div className="va-display text-right text-white text-4xl mt-2 break-all">
@@ -1012,7 +1030,7 @@ function CalculatorPanel() {
 
       <div className="grid grid-cols-4 gap-2.5">
         {keys.map((k) => {
-          const base = "rounded-2xl h-14 text-[17px] active:scale-95 transition flex items-center justify-center";
+          const base = "rounded-2xl h-14 text-[18px] active:scale-95 transition flex items-center justify-center";
           const style =
             k.kind === "eq" ? "va-fab text-white font-semibold" :
             k.kind === "op" ? "va-quick text-fuchsia-200 font-semibold" :
@@ -1026,7 +1044,7 @@ function CalculatorPanel() {
         })}
       </div>
 
-      <p className="text-[11px] text-purple-200/50 text-center">
+      <p className="text-[12.5px] text-purple-200/50 text-center">
         Tip: use it to preview an expense before logging it.
       </p>
     </div>
@@ -1064,7 +1082,7 @@ function fmtDateTime(iso: string) {
 // ============================================================================
 
 
-function UpiPanel() {
+function UpiPanel({ ai }: { ai: AutoImport }) {
   const qc = useQueryClient();
   
   const [form, setForm] = useState<{ amount: string; direction: "credit" | "debit"; counterparty: string; upi_id: string; category: UpiCategory; note: string }>({
@@ -1146,41 +1164,41 @@ function UpiPanel() {
         <div className="w-7 h-7 rounded-lg bg-emerald-400/15 text-emerald-300 flex items-center justify-center shrink-0">
           <Sparkles size={13} />
         </div>
-        <div className="text-[11.5px] leading-relaxed text-purple-100/80">
+        <div className="text-[13px] leading-relaxed text-purple-100/80">
           <span className="text-emerald-200 font-medium">Safe by design.</span> Varaigya never asks for your UPI PIN, bank login, or OTP. Entries stay in your private account — only you can see them.
         </div>
       </div>
       <div className="va-balance-card rounded-2xl p-4">
-        <div className="flex items-center gap-2 text-purple-200/80 text-[12px]"><Smartphone size={14} /> UPI activity</div>
+        <div className="flex items-center gap-2 text-purple-200/80 text-[13.5px]"><Smartphone size={14} /> UPI activity</div>
         <div className="flex items-end gap-6 mt-2">
           <div>
-            <div className="text-[11px] text-purple-200/60">Received</div>
+            <div className="text-[12.5px] text-purple-200/60">Received</div>
             <div className="va-display text-xl text-emerald-200">₹{Math.round(totals.in).toLocaleString("en-IN")}</div>
           </div>
           <div>
-            <div className="text-[11px] text-purple-200/60">Sent</div>
+            <div className="text-[12.5px] text-purple-200/60">Sent</div>
             <div className="va-display text-xl text-fuchsia-200">₹{Math.round(totals.out).toLocaleString("en-IN")}</div>
           </div>
         </div>
       </div>
 
       <div>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Automatic import</div>
-        <AutoImportCard existing={items} onImported={() => qc.invalidateQueries({ queryKey: ["upi_transactions"] })} />
+        <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Automatic import</div>
+        <AutoImportCard ai={ai} />
       </div>
 
 
 
 
       <div>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Add manually</div>
+        <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Add manually</div>
         <div className="va-glass rounded-2xl p-4 space-y-3">
           <div className="flex gap-2">
             {(["debit", "credit"] as const).map((d) => (
               <button
                 key={d}
                 onClick={() => setForm({ ...form, direction: d })}
-                className="flex-1 rounded-xl py-2 text-[12.5px]"
+                className="flex-1 rounded-xl py-2 text-[14px]"
                 style={{
                   background: form.direction === d ? "linear-gradient(135deg,#C084FC,#7C3AED)" : "rgba(168,85,247,0.10)",
                   border: "1px solid rgba(216,180,254,0.25)",
@@ -1191,15 +1209,15 @@ function UpiPanel() {
               </button>
             ))}
           </div>
-          <input className="va-input va-mono w-full rounded-xl px-4 py-2.5 text-[14px]" placeholder="Amount ₹" inputMode="decimal" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
-          <input className="va-input w-full rounded-xl px-4 py-2.5 text-[13.5px]" placeholder="Sender / Receiver" value={form.counterparty} onChange={(e) => setForm({ ...form, counterparty: e.target.value })} />
-          <input className="va-input va-mono w-full rounded-xl px-4 py-2.5 text-[13px]" placeholder="UPI ID (name@bank)" value={form.upi_id} onChange={(e) => setForm({ ...form, upi_id: e.target.value })} />
+          <input className="va-input va-mono w-full rounded-xl px-4 py-2.5 text-[15.5px]" placeholder="Amount ₹" inputMode="decimal" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+          <input className="va-input w-full rounded-xl px-4 py-2.5 text-[15px]" placeholder="Sender / Receiver" value={form.counterparty} onChange={(e) => setForm({ ...form, counterparty: e.target.value })} />
+          <input className="va-input va-mono w-full rounded-xl px-4 py-2.5 text-[14.5px]" placeholder="UPI ID (name@bank)" value={form.upi_id} onChange={(e) => setForm({ ...form, upi_id: e.target.value })} />
           <div className="flex flex-wrap gap-2">
             {UPI_CATEGORIES.map((c) => (
               <button
                 key={c.value}
                 onClick={() => setForm({ ...form, category: c.value })}
-                className="px-3 py-1.5 rounded-full text-[11.5px]"
+                className="px-3 py-1.5 rounded-full text-[13px]"
                 style={{
                   background: form.category === c.value ? "linear-gradient(135deg,#C084FC,#7C3AED)" : "rgba(168,85,247,0.10)",
                   border: "1px solid rgba(216,180,254,0.25)",
@@ -1213,7 +1231,7 @@ function UpiPanel() {
           <button
             onClick={addManual}
             disabled={add.isPending || !form.amount || !form.counterparty}
-            className="va-fab w-full rounded-xl py-2.5 text-[13px] font-semibold text-white active:scale-[0.98] transition disabled:opacity-50"
+            className="va-fab w-full rounded-xl py-2.5 text-[14.5px] font-semibold text-white active:scale-[0.98] transition disabled:opacity-50"
           >
             {add.isPending ? <Loader2 size={14} className="inline animate-spin" /> : "Save UPI transaction"}
           </button>
@@ -1221,11 +1239,11 @@ function UpiPanel() {
       </div>
 
       <div>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">History</div>
+        <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">History</div>
         {list.isLoading ? (
           <div className="va-glass rounded-2xl p-6 text-center"><Loader2 size={16} className="animate-spin inline text-fuchsia-300" /></div>
         ) : items.length === 0 ? (
-          <div className="va-glass rounded-2xl p-6 text-center text-[13px] text-purple-200/70">No UPI transactions yet.</div>
+          <div className="va-glass rounded-2xl p-6 text-center text-[14.5px] text-purple-200/70">No UPI transactions yet.</div>
         ) : (
           <div className="va-glass rounded-2xl divide-y divide-purple-500/10">
             {items.map((t) => (
@@ -1235,12 +1253,12 @@ function UpiPanel() {
                     {t.direction === "credit" ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13.5px] text-purple-50 truncate">{t.counterparty}</div>
-                    <div className="text-[11px] text-purple-200/50 truncate">
+                    <div className="text-[15px] text-purple-50 truncate">{t.counterparty}</div>
+                    <div className="text-[12.5px] text-purple-200/50 truncate">
                       {t.upi_id ?? "—"} · {fmtDateTime(t.occurred_at)}
                     </div>
                   </div>
-                  <div className={`va-mono text-[13px] shrink-0 ${t.direction === "credit" ? "text-emerald-300" : "text-fuchsia-200"}`}>
+                  <div className={`va-mono text-[14.5px] shrink-0 ${t.direction === "credit" ? "text-emerald-300" : "text-fuchsia-200"}`}>
                     {t.direction === "credit" ? "+" : "−"}₹{Number(t.amount).toLocaleString("en-IN")}
                   </div>
                   <button onClick={() => del.mutate(t.id)} className="ml-1 w-7 h-7 rounded-lg flex items-center justify-center text-purple-200/40 hover:text-rose-300 hover:bg-rose-500/10 transition" aria-label="Delete">
@@ -1252,7 +1270,7 @@ function UpiPanel() {
                     <button
                       key={c.value}
                       onClick={() => updateCat.mutate({ id: t.id, category: c.value })}
-                      className="px-2.5 py-1 rounded-full text-[10.5px] transition"
+                      className="px-2.5 py-1 rounded-full text-[12px] transition"
                       style={{
                         background: t.category === c.value ? "linear-gradient(135deg,#C084FC,#7C3AED)" : "rgba(168,85,247,0.08)",
                         border: "1px solid rgba(216,180,254,0.18)",
@@ -1302,7 +1320,7 @@ function AIInsightsPanel() {
         </div>
         <div className="flex-1 min-w-0">
           <div className="va-display text-lg text-white">Your money, analyzed</div>
-          <div className="text-[12px] text-purple-100/70 mt-0.5">
+          <div className="text-[13.5px] text-purple-100/70 mt-0.5">
             AI reviews your ledger + UPI activity and surfaces patterns.
           </div>
         </div>
@@ -1319,17 +1337,17 @@ function AIInsightsPanel() {
       {error && (
         <div className="va-glass rounded-2xl p-4 flex items-start gap-3 border border-rose-400/30">
           <AlertTriangle size={16} className="text-rose-300 shrink-0 mt-0.5" />
-          <div className="text-[12.5px] text-rose-100/90 break-words">{error}</div>
+          <div className="text-[14px] text-rose-100/90 break-words">{error}</div>
         </div>
       )}
 
       {loading && insights.length === 0 ? (
         <div className="va-glass rounded-2xl p-8 text-center">
           <Loader2 size={20} className="animate-spin inline text-fuchsia-300" />
-          <div className="text-[12.5px] text-purple-200/70 mt-3">Reading your patterns…</div>
+          <div className="text-[14px] text-purple-200/70 mt-3">Reading your patterns…</div>
         </div>
       ) : insights.length === 0 && !error ? (
-        <div className="va-glass rounded-2xl p-6 text-center text-[13px] text-purple-200/70">
+        <div className="va-glass rounded-2xl p-6 text-center text-[14.5px] text-purple-200/70">
           Add a few transactions, then hit refresh.
         </div>
       ) : (
@@ -1346,8 +1364,8 @@ function AIInsightsPanel() {
                   <Icon size={16} style={{ color: toneStyle.color }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-[13.5px] text-white font-medium">{ins.title}</div>
-                  <div className="text-[12.5px] text-purple-100/75 mt-1 leading-relaxed">{ins.body}</div>
+                  <div className="text-[15px] text-white font-medium">{ins.title}</div>
+                  <div className="text-[14px] text-purple-100/75 mt-1 leading-relaxed">{ins.body}</div>
                 </div>
               </div>
             );
@@ -1356,7 +1374,7 @@ function AIInsightsPanel() {
       )}
 
       {lastRun && (
-        <div className="text-[11px] text-purple-200/40 text-center">Last updated {lastRun}</div>
+        <div className="text-[12.5px] text-purple-200/40 text-center">Last updated {lastRun}</div>
       )}
     </div>
   );
@@ -1401,195 +1419,109 @@ function HomeAIInsights({ onOpen }: { onOpen: () => void }) {
         <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center">
           <Brain size={14} className="text-fuchsia-100" />
         </div>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-purple-100/80">AI insights</div>
-        <div className="ml-auto flex items-center gap-1 text-[11px] text-purple-100/70">
+        <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-100/80">AI insights</div>
+        <div className="ml-auto flex items-center gap-1 text-[12.5px] text-purple-100/70">
           {loading ? <Loader2 size={12} className="animate-spin" /> : count > 1 ? `+${count - 1} more` : "Tap to open"}
           <ChevronRight size={12} />
         </div>
       </div>
       {loading && !top ? (
-        <div className="text-[13px] text-purple-100/70">Reading your patterns…</div>
+        <div className="text-[14.5px] text-purple-100/70">Reading your patterns…</div>
       ) : top ? (
         <>
-          <div className="text-[13.5px] text-white font-medium leading-snug">{top.title}</div>
-          <div className="text-[12px] text-purple-100/75 mt-1 leading-relaxed line-clamp-2" style={{ color: toneColor + "cc" }}>
+          <div className="text-[15px] text-white font-medium leading-snug">{top.title}</div>
+          <div className="text-[13.5px] text-purple-100/75 mt-1 leading-relaxed line-clamp-2" style={{ color: toneColor + "cc" }}>
             {top.body}
           </div>
         </>
       ) : (
-        <div className="text-[13px] text-purple-100/70">Add a few transactions to unlock insights.</div>
+        <div className="text-[14.5px] text-purple-100/70">Add a few transactions to unlock insights.</div>
       )}
     </button>
   );
 }
 
-function isNativeAndroid(): boolean {
-  if (typeof window === "undefined") return false;
-  const w = window as unknown as { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } };
-  return !!w.Capacitor?.isNativePlatform?.() && w.Capacitor?.getPlatform?.() === "android";
+function ImportOnboarding({ ai, onDone }: { ai: AutoImport; onDone: () => void }) {
+  const running = ai.phase === "requesting" || ai.phase === "scanning" || ai.phase === "saving";
+  const done = ai.phase === "live";
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: "rgba(7,5,15,0.94)", backdropFilter: "blur(8px)" }}>
+      <div className="va-sheet va-glass rounded-t-3xl px-6 pt-7 pb-9 space-y-6 max-w-md w-full mx-auto">
+        <div className="flex items-start gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-fuchsia-400/15 text-fuchsia-200 flex items-center justify-center shrink-0">
+            <Smartphone size={24} />
+          </div>
+          <div className="space-y-2">
+            <h2 className="va-display text-2xl leading-snug">Turn on automatic import</h2>
+            <p className="text-[15.5px] leading-relaxed text-purple-100/80">
+              Vairagya reads only bank and UPI transaction SMS to build your timeline — amount, party, reference and time.
+              OTPs, PINs and login codes are always ignored.
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-purple-400/20 bg-purple-400/5 p-4 space-y-2.5">
+          <Step label="SMS permission" state={ai.smsGranted ? "done" : running ? "active" : "todo"} />
+          <Step label={`Inbox scanned${ai.scanned ? ` — ${ai.scanned} messages` : ""}`} state={ai.scanned ? "done" : ai.phase === "scanning" ? "active" : "todo"} />
+          <Step label={`Transactions imported${ai.detected ? ` — ${ai.imported}/${ai.detected}` : ""}`} state={done ? "done" : ai.phase === "saving" ? "active" : "todo"} />
+          <Step label="Payment app notifications (optional)" state={ai.notifGranted ? "done" : "todo"} />
+        </div>
+
+        {ai.status && <p className="text-[14.5px] text-purple-200/75 leading-relaxed">{ai.status}</p>}
+
+        {!done ? (
+          <button
+            onClick={() => void ai.enableSms()}
+            disabled={running}
+            className="va-fab w-full rounded-2xl py-4 text-[16px] font-semibold text-white active:scale-[0.98] transition flex items-center justify-center gap-2 disabled:opacity-70"
+          >
+            {running ? <Loader2 size={17} className="animate-spin" /> : <Smartphone size={17} />}
+            {running ? "Importing your transactions…" : ai.phase === "denied" ? "Try again" : "Enable automatic import"}
+          </button>
+        ) : (
+          <button
+            onClick={onDone}
+            className="va-fab w-full rounded-2xl py-4 text-[16px] font-semibold text-white active:scale-[0.98] transition flex items-center justify-center gap-2"
+          >
+            <Sparkles size={17} /> Continue to home
+          </button>
+        )}
+
+        <div className="flex items-center justify-between">
+          <button onClick={() => void ai.enableNotifications()} className="text-[14.5px] text-fuchsia-300">
+            {ai.notifGranted ? "Notifications connected" : "Also import payment notifications"}
+          </button>
+          <button onClick={onDone} className="text-[14.5px] text-purple-200/60">Skip for now</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-// Attach a background listener on native so new SMS ingest automatically.
-async function attachNativeSmsListener(onImport: (count: number) => void) {
-  if (typeof window === "undefined") return () => {};
-  const w = window as unknown as { Capacitor?: { Plugins?: Record<string, unknown> } };
-  const plugin = (w.Capacitor?.Plugins?.SmsInbox ?? w.Capacitor?.Plugins?.SMSInboxReader) as
-    | { addListener?: (event: string, cb: (msg: { address?: string; body?: string; date?: number }) => void) => Promise<{ remove: () => Promise<void> }> }
-    | undefined;
-  if (!plugin?.addListener) {
-    ilog("sms", "live listener unavailable (plugin missing)");
-    return () => {};
-  }
-  const sub = await plugin.addListener("smsReceived", async (msg) => {
-    ilog("sms", `live SMS received from ${msg.address ?? "unknown"}`);
-    const { parsed, failed } = parseMessages(
-      [{ address: msg.address, body: msg.body, date: msg.date ?? Date.now() }],
-      "sms",
-    );
-    if (failed) ilog("parse", `live SMS parse failures: ${failed}`);
-    if (!parsed.length) return;
-    try {
-      const { inserted } = await ingestTransactions(parsed);
-      if (inserted > 0) onImport(inserted);
-    } catch (e) {
-      ilog("db", `live SMS write failed: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  });
-  ilog("sms", "live SMS listener attached");
-  return () => { void sub.remove(); };
+function Step({ label, state }: { label: string; state: "todo" | "active" | "done" }) {
+  return (
+    <div className="flex items-center gap-3 text-[15px]">
+      <span
+        className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+        style={{
+          background: state === "done" ? "rgba(52,211,153,0.2)" : "rgba(168,85,247,0.15)",
+          border: "1px solid rgba(216,180,254,0.3)",
+        }}
+      >
+        {state === "done" ? (
+          <Sparkles size={11} className="text-emerald-300" />
+        ) : state === "active" ? (
+          <Loader2 size={11} className="animate-spin text-fuchsia-200" />
+        ) : null}
+      </span>
+      <span className={state === "done" ? "text-purple-50" : "text-purple-200/70"}>{label}</span>
+    </div>
+  );
 }
 
-// Attach Android notification-access listener (PhonePe / GPay / Paytm / BHIM / bank apps).
-async function attachNotificationListener(onImport: (count: number) => void) {
-  return subscribeNotifications(async (n) => {
-    const text = [n.title ?? "", n.text ?? ""].filter(Boolean).join(" — ");
-    ilog("notification", `notification from ${n.package ?? "unknown"}`, text.slice(0, 120));
-    const parsed = parseTransactionText(text, {
-      source: "notification",
-      sender: n.package ?? "",
-      timestamp: n.time ?? Date.now(),
-    });
-    if (!parsed) {
-      ilog("parse", "notification did not look like a transaction");
-      return;
-    }
-    try {
-      const { inserted, skipped } = await ingestTransactions([parsed]);
-      ilog("notification", `imported ${inserted}, duplicates skipped ${skipped}`);
-      if (inserted > 0) onImport(inserted);
-    } catch (e) {
-      ilog("db", `notification write failed: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  });
-}
-
-function AutoImportCard({ existing, onImported }: { existing: UpiTxn[]; onImported: () => void }) {
-  const [status, setStatus] = useState<string>("");
-  const [busy, setBusy] = useState(false);
-  const [enabled, setEnabled] = useState(false);
-  const [notifGranted, setNotifGranted] = useState(false);
-  const native = isNativeAndroid();
-
-  // Existing-row count is only used for status copy — the database's unique
-  // (user_id, dedupe_key) index is what actually prevents duplicates.
-  const existingCount = existing.length;
-
-  // Live SMS listener.
-  useEffect(() => {
-    if (!enabled || !native) return;
-    let cleanup: (() => void) | undefined;
-    void attachNativeSmsListener((n) => {
-      setStatus(`Auto-imported ${n} new transaction${n === 1 ? "" : "s"} from a fresh SMS.`);
-      onImported();
-    }).then((fn) => { cleanup = fn; });
-    return () => { cleanup?.(); };
-  }, [enabled, native, onImported]);
-
-  // Notification-access listener + permission state.
-  useEffect(() => {
-    if (!native) return;
-    let cleanup: (() => void) | undefined;
-    let cancelled = false;
-    void (async () => {
-      const granted = await hasNotificationAccess();
-      if (cancelled) return;
-      setNotifGranted(granted);
-      ilog("perm", `notification access ${granted ? "granted" : "not granted"}`);
-      if (!granted) return;
-      cleanup = await attachNotificationListener((n) => {
-        setStatus(`Auto-imported ${n} transaction${n === 1 ? "" : "s"} from a payment notification.`);
-        onImported();
-      });
-    })();
-    const onFocus = () => { void hasNotificationAccess().then(setNotifGranted); };
-    window.addEventListener("focus", onFocus);
-    return () => {
-      cancelled = true;
-      cleanup?.();
-      window.removeEventListener("focus", onFocus);
-    };
-  }, [native, onImported]);
-
-  // First-launch auto-request on Android: kick off the permission dialog +
-  // full inbox scan the first time the user opens the app. If they deny,
-  // the button below still lets them retry manually.
-  useEffect(() => {
-    if (!native) return;
-    if (typeof window === "undefined") return;
-    const KEY = "vairagya.autoImportBootstrapped";
-    if (window.localStorage.getItem(KEY)) return;
-    window.localStorage.setItem(KEY, "1");
-    ilog("sms", "first launch — bootstrapping automatic import");
-    void handleEnable();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [native]);
-
-  async function handleEnable() {
-    setBusy(true);
-    setStatus("Requesting SMS permission…");
-    try {
-      const granted = await requestSmsPermission();
-      ilog("perm", `SMS permission ${granted ? "granted" : "denied"}`);
-      if (!granted) {
-        setStatus("SMS permission denied. Grant it to import transactions automatically.");
-        setEnabled(false);
-        return;
-      }
-
-      setStatus("Scanning your entire inbox…");
-      const messages = await readAllSms();
-      ilog("sms", `scanned ${messages.length} SMS from inbox`);
-
-      const { parsed, failed } = parseMessages(messages, "sms");
-      ilog("parse", `detected ${parsed.length} transaction(s), ${failed} parse failure(s)`);
-
-      const { inserted, skipped } = await ingestTransactions(parsed);
-      ilog("db", `saved ${inserted} new transaction(s), skipped ${skipped} duplicate(s)`);
-
-      setEnabled(true);
-      setStatus(
-        inserted > 0
-          ? `Imported ${inserted} transaction${inserted === 1 ? "" : "s"} from ${messages.length} messages. New SMS now sync automatically.`
-          : `Your inbox is up to date (${existingCount} transactions tracked). New SMS sync automatically.`,
-      );
-      onImported();
-    } catch (e) {
-      ilog("sms", `import failed: ${e instanceof Error ? e.message : String(e)}`);
-      setStatus(`Failed: ${e instanceof Error ? e.message : String(e)}`);
-      setEnabled(false);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleNotificationAccess() {
-    ilog("perm", "opening notification access settings");
-    await requestNotificationAccess();
-    setStatus("Enable “Vairagya transaction import” in the list, then come back.");
-  }
-
+function AutoImportCard({ ai }: { ai: AutoImport }) {
   // ── Web fallback: no paste UI. Honest explanation + install instructions. ──
-  if (!native) {
+  if (!ai.native) {
     return (
       <div className="va-glass rounded-2xl p-5 space-y-4">
         <div className="flex items-start gap-3">
@@ -1597,82 +1529,79 @@ function AutoImportCard({ existing, onImported }: { existing: UpiTxn[]; onImport
             <AlertTriangle size={18} />
           </div>
           <div className="space-y-1">
-            <div className="text-[13.5px] font-semibold text-purple-50">Requires the Android app</div>
-            <div className="text-[11.5px] text-purple-200/70 leading-relaxed">
-              Web browsers cannot read SMS — Android reserves that permission for installed apps only. To enable
-              tap-once automatic import, install Varaigya as an Android app. Everything else keeps working here.
+            <div className="text-[16px] font-semibold text-purple-50">Requires the Android app</div>
+            <div className="text-[14.5px] text-purple-200/70 leading-relaxed">
+              Web browsers cannot read SMS — Android reserves that permission for installed apps only. Install
+              Vairagya as an Android app to enable tap-once automatic import. Everything else keeps working here.
             </div>
           </div>
         </div>
 
-        <div className="rounded-xl border border-purple-400/20 bg-purple-400/5 p-3.5 space-y-2">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-purple-200/70">How auto-import works on Android</div>
-          <ol className="space-y-1.5 text-[12px] text-purple-100/80 list-decimal list-inside">
-            <li>Install the Varaigya Android build (Capacitor wrapper).</li>
-            <li>Tap <span className="text-purple-100 font-medium">Enable Automatic Import</span> once.</li>
-            <li>Android shows the SMS permission dialog — grant it.</li>
-            <li>Your full bank / UPI SMS history scans and imports in seconds.</li>
+        <div className="rounded-xl border border-purple-400/20 bg-purple-400/5 p-4 space-y-2">
+          <div className="text-[13.5px] uppercase tracking-[0.18em] text-purple-200/70">How auto-import works on Android</div>
+          <ol className="space-y-2 text-[15px] text-purple-100/80 list-decimal list-inside">
+            <li>Install the Vairagya Android build.</li>
+            <li>Grant the SMS permission when asked on first launch.</li>
+            <li>Your full bank / UPI SMS history imports in seconds.</li>
             <li>Every new transaction SMS and payment notification syncs in the background.</li>
           </ol>
         </div>
 
         <button
           disabled
-          className="va-input w-full rounded-xl py-3 text-[13px] font-semibold text-purple-200/60 flex items-center justify-center gap-2 opacity-60 cursor-not-allowed"
+          className="va-input w-full rounded-xl py-3.5 text-[15.5px] font-semibold text-purple-200/60 flex items-center justify-center gap-2 opacity-60 cursor-not-allowed"
         >
-          <Smartphone size={15} /> Enable Automatic Import (Android only)
+          <Smartphone size={16} /> Enable Automatic Import (Android only)
         </button>
-        <p className="text-[10.5px] text-purple-200/50 leading-relaxed">
-          Only SMS bodies from bank/UPI senders are parsed for amount, party, and time. OTPs, PINs, and login codes are ignored and never leave the device unencrypted.
-        </p>
       </div>
     );
   }
 
-  // ── Native Android path: real auto-import ──
+  const enabled = ai.smsGranted;
+  const busy = ai.busy;
+
   return (
     <div className="va-glass rounded-2xl p-5 space-y-4">
       <div className="flex items-start gap-3">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${enabled ? "bg-emerald-400/15 text-emerald-300" : "bg-purple-400/15 text-purple-200"}`}>
-          <Smartphone size={18} />
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${enabled ? "bg-emerald-400/15 text-emerald-300" : "bg-purple-400/15 text-purple-200"}`}>
+          <Smartphone size={19} />
         </div>
         <div className="space-y-1">
-          <div className="text-[13.5px] font-semibold text-purple-50">
+          <div className="text-[16px] font-semibold text-purple-50">
             {enabled ? "Auto-import is on" : "Automatic SMS import"}
           </div>
-          <div className="text-[11.5px] text-purple-200/70 leading-relaxed">
+          <div className="text-[14.5px] text-purple-200/70 leading-relaxed">
             {enabled
-              ? "New bank and UPI SMS are silently parsed and added to your timeline. No paste, no manual work."
-              : "Grant SMS permission once. Varaigya scans your existing bank/UPI SMS and keeps syncing new ones automatically."}
+              ? "New bank and UPI SMS are parsed and added to your timeline automatically."
+              : "Grant SMS permission once. Vairagya scans your existing bank/UPI SMS and keeps syncing new ones."}
           </div>
         </div>
       </div>
 
       <button
-        onClick={handleEnable}
-        disabled={busy || enabled}
-        className="va-fab w-full rounded-xl py-3 text-[13px] font-semibold text-white active:scale-[0.98] transition flex items-center justify-center gap-2 disabled:opacity-70"
+        onClick={() => void (enabled ? ai.runFullScan() : ai.enableSms())}
+        disabled={busy}
+        className="va-fab w-full rounded-xl py-3.5 text-[15.5px] font-semibold text-white active:scale-[0.98] transition flex items-center justify-center gap-2 disabled:opacity-70"
       >
-        {busy ? <Loader2 size={15} className="animate-spin" /> : enabled ? <Sparkles size={15} /> : <Smartphone size={15} />}
-        {busy ? "Scanning inbox…" : enabled ? "Enabled — background sync active" : "Enable Automatic Import"}
+        {busy ? <Loader2 size={16} className="animate-spin" /> : enabled ? <RefreshCw size={16} /> : <Smartphone size={16} />}
+        {busy ? "Scanning inbox…" : enabled ? "Re-scan inbox now" : "Enable Automatic Import"}
       </button>
 
       <button
-        onClick={handleNotificationAccess}
-        disabled={notifGranted}
-        className="va-input w-full rounded-xl py-3 text-[13px] font-semibold text-purple-100 flex items-center justify-center gap-2 disabled:opacity-60"
+        onClick={() => void ai.enableNotifications()}
+        disabled={ai.notifGranted}
+        className="va-input w-full rounded-xl py-3.5 text-[15.5px] font-semibold text-purple-100 flex items-center justify-center gap-2 disabled:opacity-60"
       >
-        {notifGranted ? <Sparkles size={15} className="text-emerald-300" /> : <BellRing size={15} />}
-        {notifGranted ? "Payment notifications connected" : "Also import payment app notifications"}
+        {ai.notifGranted ? <Sparkles size={16} className="text-emerald-300" /> : <BellRing size={16} />}
+        {ai.notifGranted ? "Payment notifications connected" : "Also import payment app notifications"}
       </button>
 
-      {status && <p className="text-[11px] text-purple-200/70 leading-relaxed">{status}</p>}
+      {ai.status && <p className="text-[14px] text-purple-200/70 leading-relaxed">{ai.status}</p>}
 
-      <p className="text-[10.5px] text-purple-200/50 leading-relaxed">
-        Varaigya reads only bank/UPI SMS and payment notifications to extract amount, party, reference and time. OTPs, PINs, and login codes are ignored. Duplicates are detected automatically.
+      <p className="text-[13.5px] text-purple-200/50 leading-relaxed">
+        Vairagya reads only bank/UPI SMS and payment notifications to extract amount, party, reference and time. OTPs,
+        PINs and login codes are ignored. Duplicates are detected automatically.
       </p>
     </div>
   );
 }
-
-

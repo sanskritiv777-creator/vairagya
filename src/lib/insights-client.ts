@@ -24,37 +24,59 @@ export function apiOrigin(): string {
   return isNativeShell ? FALLBACK_ORIGIN : origin;
 }
 
+function candidateOrigins(): string[] {
+  const list = [apiOrigin(), FALLBACK_ORIGIN, ""];
+  return [...new Set(list)];
+}
+
 export async function fetchInsights(): Promise<Insight[]> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new Error("Sign in again to generate insights.");
 
-  const url = `${apiOrigin()}/api/public/insights`;
-  ilog("insights", `requesting insights from ${url}`);
+  let lastError = "Could not reach the insights service.";
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
-      body: "{}",
-    });
-  } catch {
-    throw new Error("No connection to the insights service. Check your internet and retry.");
+  // Try the resolved origin first, then the published origin, then a relative
+  // path. On Android the app is served from https://localhost, so a relative
+  // path alone can never work — that was the old "page can't load".
+  for (const origin of candidateOrigins()) {
+    const url = `${origin}/api/public/insights`;
+    ilog("insights", `requesting insights from ${url}`);
+
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+        body: "{}",
+      });
+    } catch {
+      lastError = "No connection to the insights service. Check your internet and retry.";
+      continue;
+    }
+
+    let body: { insights?: Insight[]; error?: string } = {};
+    let text = "";
+    try {
+      text = await res.text();
+      body = JSON.parse(text) as typeof body;
+    } catch {
+      lastError = `Insights service returned an unexpected response (${res.status}).`;
+      continue; // usually an HTML shell — try the next origin
+    }
+
+    if (!res.ok) {
+      ilog("insights", `failed (${res.status})`, body.error);
+      const message = body.error ?? `Insights service error (${res.status}).`;
+      // Auth / config / AI errors are real answers — surface them immediately.
+      if (res.status !== 404) throw new Error(message);
+      lastError = message;
+      continue;
+    }
+
+    ilog("insights", `received ${body.insights?.length ?? 0} insight(s)`);
+    return body.insights ?? [];
   }
 
-  let body: { insights?: Insight[]; error?: string } = {};
-  try {
-    body = (await res.json()) as typeof body;
-  } catch {
-    throw new Error(`Insights service returned an unexpected response (${res.status}).`);
-  }
-
-  if (!res.ok) {
-    ilog("insights", `failed (${res.status})`, body.error);
-    throw new Error(body.error ?? `Insights service error (${res.status}).`);
-  }
-
-  ilog("insights", `received ${body.insights?.length ?? 0} insight(s)`);
-  return body.insights ?? [];
+  throw new Error(lastError);
 }
