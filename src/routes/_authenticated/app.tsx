@@ -61,6 +61,28 @@ function Dashboard() {
   const [greeting, setGreeting] = useState("Hello");
   useEffect(() => setGreeting(getGreeting()), []);
 
+  // Automatic transaction import runs from app start, not from a settings sheet.
+  const ai = useAutoImport(() => {
+    void qc.invalidateQueries({ queryKey: ["upi_transactions"] });
+    void qc.invalidateQueries({ queryKey: ["transactions"] });
+  });
+
+  // First run after signup/login: guide the user straight into enabling import.
+  const [onboarding, setOnboarding] = useState(false);
+  useEffect(() => {
+    if (!isNativeAndroidRuntime()) return;
+    if (typeof window === "undefined") return;
+    if (window.localStorage.getItem("vairagya.importOnboarded")) return;
+    setOnboarding(true);
+    ilog("perm", "showing import onboarding");
+  }, []);
+  const finishOnboarding = () => {
+    window.localStorage.setItem("vairagya.importOnboarded", "1");
+    setOnboarding(false);
+  };
+
+
+
   const profileQuery = useQuery({
     queryKey: ["profile"],
     queryFn: async (): Promise<Profile> => {
