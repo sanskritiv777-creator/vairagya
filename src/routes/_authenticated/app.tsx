@@ -1058,7 +1058,7 @@ function fmtDateTime(iso: string) {
 // ============================================================================
 
 
-function UpiPanel() {
+function UpiPanel({ ai }: { ai: AutoImport }) {
   const qc = useQueryClient();
   
   const [form, setForm] = useState<{ amount: string; direction: "credit" | "debit"; counterparty: string; upi_id: string; category: UpiCategory; note: string }>({
