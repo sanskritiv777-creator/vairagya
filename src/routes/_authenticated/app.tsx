@@ -1160,7 +1160,7 @@ function UpiPanel({ ai }: { ai: AutoImport }) {
 
       <div>
         <div className="text-[11px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Automatic import</div>
-        <AutoImportCard existing={items} onImported={() => qc.invalidateQueries({ queryKey: ["upi_transactions"] })} />
+        <AutoImportCard ai={ai} />
       </div>
 
 
