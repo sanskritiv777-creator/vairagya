@@ -1417,173 +1417,87 @@ function HomeAIInsights({ onOpen }: { onOpen: () => void }) {
   );
 }
 
-function isNativeAndroid(): boolean {
-  if (typeof window === "undefined") return false;
-  const w = window as unknown as { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } };
-  return !!w.Capacitor?.isNativePlatform?.() && w.Capacitor?.getPlatform?.() === "android";
+function ImportOnboarding({ ai, onDone }: { ai: AutoImport; onDone: () => void }) {
+  const running = ai.phase === "requesting" || ai.phase === "scanning" || ai.phase === "saving";
+  const done = ai.phase === "live";
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end" style={{ background: "rgba(7,5,15,0.94)", backdropFilter: "blur(8px)" }}>
+      <div className="va-sheet va-glass rounded-t-3xl px-6 pt-7 pb-9 space-y-6 max-w-md w-full mx-auto">
+        <div className="flex items-start gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-fuchsia-400/15 text-fuchsia-200 flex items-center justify-center shrink-0">
+            <Smartphone size={24} />
+          </div>
+          <div className="space-y-2">
+            <h2 className="va-display text-2xl leading-snug">Turn on automatic import</h2>
+            <p className="text-[14px] leading-relaxed text-purple-100/80">
+              Vairagya reads only bank and UPI transaction SMS to build your timeline — amount, party, reference and time.
+              OTPs, PINs and login codes are always ignored.
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-purple-400/20 bg-purple-400/5 p-4 space-y-2.5">
+          <Step label="SMS permission" state={ai.smsGranted ? "done" : running ? "active" : "todo"} />
+          <Step label={`Inbox scanned${ai.scanned ? ` — ${ai.scanned} messages` : ""}`} state={ai.scanned ? "done" : ai.phase === "scanning" ? "active" : "todo"} />
+          <Step label={`Transactions imported${ai.detected ? ` — ${ai.imported}/${ai.detected}` : ""}`} state={done ? "done" : ai.phase === "saving" ? "active" : "todo"} />
+          <Step label="Payment app notifications (optional)" state={ai.notifGranted ? "done" : "todo"} />
+        </div>
+
+        {ai.status && <p className="text-[13px] text-purple-200/75 leading-relaxed">{ai.status}</p>}
+
+        {!done ? (
+          <button
+            onClick={() => void ai.enableSms()}
+            disabled={running}
+            className="va-fab w-full rounded-2xl py-4 text-[15px] font-semibold text-white active:scale-[0.98] transition flex items-center justify-center gap-2 disabled:opacity-70"
+          >
+            {running ? <Loader2 size={17} className="animate-spin" /> : <Smartphone size={17} />}
+            {running ? "Importing your transactions…" : ai.phase === "denied" ? "Try again" : "Enable automatic import"}
+          </button>
+        ) : (
+          <button
+            onClick={onDone}
+            className="va-fab w-full rounded-2xl py-4 text-[15px] font-semibold text-white active:scale-[0.98] transition flex items-center justify-center gap-2"
+          >
+            <Sparkles size={17} /> Continue to home
+          </button>
+        )}
+
+        <div className="flex items-center justify-between">
+          <button onClick={() => void ai.enableNotifications()} className="text-[13px] text-fuchsia-300">
+            {ai.notifGranted ? "Notifications connected" : "Also import payment notifications"}
+          </button>
+          <button onClick={onDone} className="text-[13px] text-purple-200/60">Skip for now</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-// Attach a background listener on native so new SMS ingest automatically.
-async function attachNativeSmsListener(onImport: (count: number) => void) {
-  if (typeof window === "undefined") return () => {};
-  const w = window as unknown as { Capacitor?: { Plugins?: Record<string, unknown> } };
-  const plugin = (w.Capacitor?.Plugins?.SmsInbox ?? w.Capacitor?.Plugins?.SMSInboxReader) as
-    | { addListener?: (event: string, cb: (msg: { address?: string; body?: string; date?: number }) => void) => Promise<{ remove: () => Promise<void> }> }
-    | undefined;
-  if (!plugin?.addListener) {
-    ilog("sms", "live listener unavailable (plugin missing)");
-    return () => {};
-  }
-  const sub = await plugin.addListener("smsReceived", async (msg) => {
-    ilog("sms", `live SMS received from ${msg.address ?? "unknown"}`);
-    const { parsed, failed } = parseMessages(
-      [{ address: msg.address, body: msg.body, date: msg.date ?? Date.now() }],
-      "sms",
-    );
-    if (failed) ilog("parse", `live SMS parse failures: ${failed}`);
-    if (!parsed.length) return;
-    try {
-      const { inserted } = await ingestTransactions(parsed);
-      if (inserted > 0) onImport(inserted);
-    } catch (e) {
-      ilog("db", `live SMS write failed: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  });
-  ilog("sms", "live SMS listener attached");
-  return () => { void sub.remove(); };
+function Step({ label, state }: { label: string; state: "todo" | "active" | "done" }) {
+  return (
+    <div className="flex items-center gap-3 text-[13.5px]">
+      <span
+        className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+        style={{
+          background: state === "done" ? "rgba(52,211,153,0.2)" : "rgba(168,85,247,0.15)",
+          border: "1px solid rgba(216,180,254,0.3)",
+        }}
+      >
+        {state === "done" ? (
+          <Sparkles size={11} className="text-emerald-300" />
+        ) : state === "active" ? (
+          <Loader2 size={11} className="animate-spin text-fuchsia-200" />
+        ) : null}
+      </span>
+      <span className={state === "done" ? "text-purple-50" : "text-purple-200/70"}>{label}</span>
+    </div>
+  );
 }
 
-// Attach Android notification-access listener (PhonePe / GPay / Paytm / BHIM / bank apps).
-async function attachNotificationListener(onImport: (count: number) => void) {
-  return subscribeNotifications(async (n) => {
-    const text = [n.title ?? "", n.text ?? ""].filter(Boolean).join(" — ");
-    ilog("notification", `notification from ${n.package ?? "unknown"}`, text.slice(0, 120));
-    const parsed = parseTransactionText(text, {
-      source: "notification",
-      sender: n.package ?? "",
-      timestamp: n.time ?? Date.now(),
-    });
-    if (!parsed) {
-      ilog("parse", "notification did not look like a transaction");
-      return;
-    }
-    try {
-      const { inserted, skipped } = await ingestTransactions([parsed]);
-      ilog("notification", `imported ${inserted}, duplicates skipped ${skipped}`);
-      if (inserted > 0) onImport(inserted);
-    } catch (e) {
-      ilog("db", `notification write failed: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  });
-}
-
-function AutoImportCard({ existing, onImported }: { existing: UpiTxn[]; onImported: () => void }) {
-  const [status, setStatus] = useState<string>("");
-  const [busy, setBusy] = useState(false);
-  const [enabled, setEnabled] = useState(false);
-  const [notifGranted, setNotifGranted] = useState(false);
-  const native = isNativeAndroid();
-
-  // Existing-row count is only used for status copy — the database's unique
-  // (user_id, dedupe_key) index is what actually prevents duplicates.
-  const existingCount = existing.length;
-
-  // Live SMS listener.
-  useEffect(() => {
-    if (!enabled || !native) return;
-    let cleanup: (() => void) | undefined;
-    void attachNativeSmsListener((n) => {
-      setStatus(`Auto-imported ${n} new transaction${n === 1 ? "" : "s"} from a fresh SMS.`);
-      onImported();
-    }).then((fn) => { cleanup = fn; });
-    return () => { cleanup?.(); };
-  }, [enabled, native, onImported]);
-
-  // Notification-access listener + permission state.
-  useEffect(() => {
-    if (!native) return;
-    let cleanup: (() => void) | undefined;
-    let cancelled = false;
-    void (async () => {
-      const granted = await hasNotificationAccess();
-      if (cancelled) return;
-      setNotifGranted(granted);
-      ilog("perm", `notification access ${granted ? "granted" : "not granted"}`);
-      if (!granted) return;
-      cleanup = await attachNotificationListener((n) => {
-        setStatus(`Auto-imported ${n} transaction${n === 1 ? "" : "s"} from a payment notification.`);
-        onImported();
-      });
-    })();
-    const onFocus = () => { void hasNotificationAccess().then(setNotifGranted); };
-    window.addEventListener("focus", onFocus);
-    return () => {
-      cancelled = true;
-      cleanup?.();
-      window.removeEventListener("focus", onFocus);
-    };
-  }, [native, onImported]);
-
-  // First-launch auto-request on Android: kick off the permission dialog +
-  // full inbox scan the first time the user opens the app. If they deny,
-  // the button below still lets them retry manually.
-  useEffect(() => {
-    if (!native) return;
-    if (typeof window === "undefined") return;
-    const KEY = "vairagya.autoImportBootstrapped";
-    if (window.localStorage.getItem(KEY)) return;
-    window.localStorage.setItem(KEY, "1");
-    ilog("sms", "first launch — bootstrapping automatic import");
-    void handleEnable();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [native]);
-
-  async function handleEnable() {
-    setBusy(true);
-    setStatus("Requesting SMS permission…");
-    try {
-      const granted = await requestSmsPermission();
-      ilog("perm", `SMS permission ${granted ? "granted" : "denied"}`);
-      if (!granted) {
-        setStatus("SMS permission denied. Grant it to import transactions automatically.");
-        setEnabled(false);
-        return;
-      }
-
-      setStatus("Scanning your entire inbox…");
-      const messages = await readAllSms();
-      ilog("sms", `scanned ${messages.length} SMS from inbox`);
-
-      const { parsed, failed } = parseMessages(messages, "sms");
-      ilog("parse", `detected ${parsed.length} transaction(s), ${failed} parse failure(s)`);
-
-      const { inserted, skipped } = await ingestTransactions(parsed);
-      ilog("db", `saved ${inserted} new transaction(s), skipped ${skipped} duplicate(s)`);
-
-      setEnabled(true);
-      setStatus(
-        inserted > 0
-          ? `Imported ${inserted} transaction${inserted === 1 ? "" : "s"} from ${messages.length} messages. New SMS now sync automatically.`
-          : `Your inbox is up to date (${existingCount} transactions tracked). New SMS sync automatically.`,
-      );
-      onImported();
-    } catch (e) {
-      ilog("sms", `import failed: ${e instanceof Error ? e.message : String(e)}`);
-      setStatus(`Failed: ${e instanceof Error ? e.message : String(e)}`);
-      setEnabled(false);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleNotificationAccess() {
-    ilog("perm", "opening notification access settings");
-    await requestNotificationAccess();
-    setStatus("Enable “Vairagya transaction import” in the list, then come back.");
-  }
-
+function AutoImportCard({ ai }: { ai: AutoImport }) {
   // ── Web fallback: no paste UI. Honest explanation + install instructions. ──
-  if (!native) {
+  if (!ai.native) {
     return (
       <div className="va-glass rounded-2xl p-5 space-y-4">
         <div className="flex items-start gap-3">
@@ -1591,82 +1505,79 @@ function AutoImportCard({ existing, onImported }: { existing: UpiTxn[]; onImport
             <AlertTriangle size={18} />
           </div>
           <div className="space-y-1">
-            <div className="text-[13.5px] font-semibold text-purple-50">Requires the Android app</div>
-            <div className="text-[11.5px] text-purple-200/70 leading-relaxed">
-              Web browsers cannot read SMS — Android reserves that permission for installed apps only. To enable
-              tap-once automatic import, install Varaigya as an Android app. Everything else keeps working here.
+            <div className="text-[15px] font-semibold text-purple-50">Requires the Android app</div>
+            <div className="text-[13px] text-purple-200/70 leading-relaxed">
+              Web browsers cannot read SMS — Android reserves that permission for installed apps only. Install
+              Vairagya as an Android app to enable tap-once automatic import. Everything else keeps working here.
             </div>
           </div>
         </div>
 
-        <div className="rounded-xl border border-purple-400/20 bg-purple-400/5 p-3.5 space-y-2">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-purple-200/70">How auto-import works on Android</div>
-          <ol className="space-y-1.5 text-[12px] text-purple-100/80 list-decimal list-inside">
-            <li>Install the Varaigya Android build (Capacitor wrapper).</li>
-            <li>Tap <span className="text-purple-100 font-medium">Enable Automatic Import</span> once.</li>
-            <li>Android shows the SMS permission dialog — grant it.</li>
-            <li>Your full bank / UPI SMS history scans and imports in seconds.</li>
+        <div className="rounded-xl border border-purple-400/20 bg-purple-400/5 p-4 space-y-2">
+          <div className="text-[12px] uppercase tracking-[0.18em] text-purple-200/70">How auto-import works on Android</div>
+          <ol className="space-y-2 text-[13.5px] text-purple-100/80 list-decimal list-inside">
+            <li>Install the Vairagya Android build.</li>
+            <li>Grant the SMS permission when asked on first launch.</li>
+            <li>Your full bank / UPI SMS history imports in seconds.</li>
             <li>Every new transaction SMS and payment notification syncs in the background.</li>
           </ol>
         </div>
 
         <button
           disabled
-          className="va-input w-full rounded-xl py-3 text-[13px] font-semibold text-purple-200/60 flex items-center justify-center gap-2 opacity-60 cursor-not-allowed"
+          className="va-input w-full rounded-xl py-3.5 text-[14px] font-semibold text-purple-200/60 flex items-center justify-center gap-2 opacity-60 cursor-not-allowed"
         >
-          <Smartphone size={15} /> Enable Automatic Import (Android only)
+          <Smartphone size={16} /> Enable Automatic Import (Android only)
         </button>
-        <p className="text-[10.5px] text-purple-200/50 leading-relaxed">
-          Only SMS bodies from bank/UPI senders are parsed for amount, party, and time. OTPs, PINs, and login codes are ignored and never leave the device unencrypted.
-        </p>
       </div>
     );
   }
 
-  // ── Native Android path: real auto-import ──
+  const enabled = ai.smsGranted;
+  const busy = ai.busy;
+
   return (
     <div className="va-glass rounded-2xl p-5 space-y-4">
       <div className="flex items-start gap-3">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${enabled ? "bg-emerald-400/15 text-emerald-300" : "bg-purple-400/15 text-purple-200"}`}>
-          <Smartphone size={18} />
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${enabled ? "bg-emerald-400/15 text-emerald-300" : "bg-purple-400/15 text-purple-200"}`}>
+          <Smartphone size={19} />
         </div>
         <div className="space-y-1">
-          <div className="text-[13.5px] font-semibold text-purple-50">
+          <div className="text-[15px] font-semibold text-purple-50">
             {enabled ? "Auto-import is on" : "Automatic SMS import"}
           </div>
-          <div className="text-[11.5px] text-purple-200/70 leading-relaxed">
+          <div className="text-[13px] text-purple-200/70 leading-relaxed">
             {enabled
-              ? "New bank and UPI SMS are silently parsed and added to your timeline. No paste, no manual work."
-              : "Grant SMS permission once. Varaigya scans your existing bank/UPI SMS and keeps syncing new ones automatically."}
+              ? "New bank and UPI SMS are parsed and added to your timeline automatically."
+              : "Grant SMS permission once. Vairagya scans your existing bank/UPI SMS and keeps syncing new ones."}
           </div>
         </div>
       </div>
 
       <button
-        onClick={handleEnable}
-        disabled={busy || enabled}
-        className="va-fab w-full rounded-xl py-3 text-[13px] font-semibold text-white active:scale-[0.98] transition flex items-center justify-center gap-2 disabled:opacity-70"
+        onClick={() => void (enabled ? ai.runFullScan() : ai.enableSms())}
+        disabled={busy}
+        className="va-fab w-full rounded-xl py-3.5 text-[14px] font-semibold text-white active:scale-[0.98] transition flex items-center justify-center gap-2 disabled:opacity-70"
       >
-        {busy ? <Loader2 size={15} className="animate-spin" /> : enabled ? <Sparkles size={15} /> : <Smartphone size={15} />}
-        {busy ? "Scanning inbox…" : enabled ? "Enabled — background sync active" : "Enable Automatic Import"}
+        {busy ? <Loader2 size={16} className="animate-spin" /> : enabled ? <RefreshCw size={16} /> : <Smartphone size={16} />}
+        {busy ? "Scanning inbox…" : enabled ? "Re-scan inbox now" : "Enable Automatic Import"}
       </button>
 
       <button
-        onClick={handleNotificationAccess}
-        disabled={notifGranted}
-        className="va-input w-full rounded-xl py-3 text-[13px] font-semibold text-purple-100 flex items-center justify-center gap-2 disabled:opacity-60"
+        onClick={() => void ai.enableNotifications()}
+        disabled={ai.notifGranted}
+        className="va-input w-full rounded-xl py-3.5 text-[14px] font-semibold text-purple-100 flex items-center justify-center gap-2 disabled:opacity-60"
       >
-        {notifGranted ? <Sparkles size={15} className="text-emerald-300" /> : <BellRing size={15} />}
-        {notifGranted ? "Payment notifications connected" : "Also import payment app notifications"}
+        {ai.notifGranted ? <Sparkles size={16} className="text-emerald-300" /> : <BellRing size={16} />}
+        {ai.notifGranted ? "Payment notifications connected" : "Also import payment app notifications"}
       </button>
 
-      {status && <p className="text-[11px] text-purple-200/70 leading-relaxed">{status}</p>}
+      {ai.status && <p className="text-[12.5px] text-purple-200/70 leading-relaxed">{ai.status}</p>}
 
-      <p className="text-[10.5px] text-purple-200/50 leading-relaxed">
-        Varaigya reads only bank/UPI SMS and payment notifications to extract amount, party, reference and time. OTPs, PINs, and login codes are ignored. Duplicates are detected automatically.
+      <p className="text-[12px] text-purple-200/50 leading-relaxed">
+        Vairagya reads only bank/UPI SMS and payment notifications to extract amount, party, reference and time. OTPs,
+        PINs and login codes are ignored. Duplicates are detected automatically.
       </p>
     </div>
   );
 }
-
-
