@@ -403,6 +403,8 @@ function Dashboard() {
           </div>
         </div>
 
+        {onboarding && <ImportOnboarding ai={ai} onDone={finishOnboarding} />}
+
         {tab !== "home" && (
           <SecondarySheet
             title={
