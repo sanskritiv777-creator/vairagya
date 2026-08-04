@@ -47,6 +47,21 @@ jobs:
             --splashBackgroundColor "#07050F" \
             --splashBackgroundColorDark "#07050F"
 
+      - name: Generate notification status-bar icon (ic_stat_icon)
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y imagemagick
+          set -e
+          declare -A sizes=( [mdpi]=24 [hdpi]=36 [xhdpi]=48 [xxhdpi]=72 [xxxhdpi]=96 )
+          for d in "${!sizes[@]}"; do
+            out="android/app/src/main/res/drawable-$d"
+            mkdir -p "$out"
+            convert resources/icon-only.png -resize "${sizes[$d]}x${sizes[$d]}" \
+              -background none -alpha set "$out/ic_stat_icon.png"
+          done
+          mkdir -p android/app/src/main/res/drawable
+          convert resources/icon-only.png -resize 48x48 android/app/src/main/res/drawable/ic_stat_icon.png
+
+
       - name: Patch AndroidManifest.xml (permissions + SMS query)
         run: |
           python3 scripts/patch-android-manifest.py
