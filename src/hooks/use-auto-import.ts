@@ -229,10 +229,20 @@ export function useAutoImport(onImported: () => void) {
     };
     window.addEventListener("focus", recheck);
     document.addEventListener("visibilitychange", recheck);
+    // Some Android builds don't fire focus/visibility when returning from the
+    // system Settings app, so poll cheaply until both permissions are on.
+    const poll = window.setInterval(() => {
+      setState((s) => {
+        if (s.smsGranted && s.notifGranted) return s;
+        recheck();
+        return s;
+      });
+    }, 4000);
 
     return () => {
       cancelled = true;
       cleanups.forEach((fn) => fn());
+      window.clearInterval(poll);
       window.removeEventListener("focus", recheck);
       document.removeEventListener("visibilitychange", recheck);
     };
