@@ -94,6 +94,9 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "2-digit" });
 }
 
+const EMPTY_TXNS: Txn[] = [];
+const EMPTY_UPI: UpiTxn[] = [];
+
 function Dashboard() {
   const navigate = useNavigate();
   const qc = useQueryClient();
