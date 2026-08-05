@@ -221,8 +221,10 @@ function Dashboard() {
   });
 
   const profile = profileQuery.data;
-  const txns = txnsQuery.data ?? [];
-  const upiTxns = upiQuery.data ?? [];
+  const EMPTY_TXNS: Txn[] = EMPTY_MANUAL;
+  const txns = txnsQuery.data ?? EMPTY_TXNS;
+  const upiTxns = upiQuery.data ?? EMPTY_UPI;
+
   const taxRate = profile?.tax_rate ?? 27;
   const baseExpenses = Number(profile?.monthly_base_expenses ?? 2400);
 
