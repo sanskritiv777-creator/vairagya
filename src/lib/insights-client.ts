@@ -8,8 +8,10 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { ilog } from "./ingest-log";
+import { localInsights, type Insight } from "./local-insights";
+import type { UnifiedTxn } from "./analytics";
 
-export type Insight = { title: string; body: string; tone: "positive" | "neutral" | "warning" };
+export type { Insight };
 
 const FALLBACK_ORIGIN = "https://vairagya.lovable.app";
 
@@ -29,10 +31,22 @@ function candidateOrigins(): string[] {
   return [...new Set(list)];
 }
 
-export async function fetchInsights(): Promise<Insight[]> {
+export type InsightsResult = { insights: Insight[]; offline: boolean };
+
+/**
+ * Ask the AI gateway for insights. If anything at all goes wrong — no session,
+ * no network, gateway error — insights are generated locally from the imported
+ * transaction history so this screen is never empty.
+ */
+export async function fetchInsights(
+  fallbackItems: UnifiedTxn[] = [],
+  taxRate = 27,
+): Promise<InsightsResult> {
+  const local = (): InsightsResult => ({ insights: localInsights(fallbackItems, taxRate), offline: true });
+
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
-  if (!token) throw new Error("Sign in again to generate insights.");
+  if (!token) return local();
 
   let lastError = "Could not reach the insights service.";
 
@@ -67,16 +81,16 @@ export async function fetchInsights(): Promise<Insight[]> {
 
     if (!res.ok) {
       ilog("insights", `failed (${res.status})`, body.error);
-      const message = body.error ?? `Insights service error (${res.status}).`;
-      // Auth / config / AI errors are real answers — surface them immediately.
-      if (res.status !== 404) throw new Error(message);
-      lastError = message;
+      lastError = body.error ?? `Insights service error (${res.status}).`;
       continue;
     }
 
-    ilog("insights", `received ${body.insights?.length ?? 0} insight(s)`);
-    return body.insights ?? [];
+    const list = body.insights ?? [];
+    ilog("insights", `received ${list.length} insight(s)`);
+    if (list.length === 0) return local();
+    return { insights: list, offline: false };
   }
 
-  throw new Error(lastError);
+  ilog("insights", `falling back to local insights: ${lastError}`);
+  return local();
 }
