@@ -1649,3 +1649,381 @@ function AutoImportCard({ ai }: { ai: AutoImport }) {
     </div>
   );
 }
+
+/* ─────────────────────────── Presentational parts ───────────────────────── */
+
+function Section({
+  title, trailing, action, children,
+}: {
+  title: string;
+  trailing?: string;
+  action?: { label: string; onClick: () => void };
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="px-6 mt-8">
+      <div className="flex items-center justify-between mb-3.5">
+        <h2 className="va-display text-[19px]">{title}</h2>
+        {trailing && <span className="va-mono text-[14px] text-purple-200/60">{trailing}</span>}
+        {action && (
+          <button onClick={action.onClick} className="text-[14px] text-fuchsia-300 flex items-center gap-1 active:scale-95 transition">
+            {action.label} <ChevronRight size={14} />
+          </button>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function StatCard({
+  label, value, hint, icon: Icon, accent, small,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
+  accent: string;
+  small?: boolean;
+}) {
+  return (
+    <div className="va-glass rounded-2xl px-4 py-4">
+      <div className="flex items-center gap-2">
+        <span className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: accent + "22" }}>
+          <Icon size={14} style={{ color: accent }} />
+        </span>
+        <span className="text-[13px] text-purple-200/65">{label}</span>
+      </div>
+      <div className={`va-display mt-2.5 text-white truncate ${small ? "text-[19px]" : "text-[23px]"}`}>{value}</div>
+      <div className="text-[12.5px] text-purple-200/45 mt-0.5 truncate">{hint}</div>
+    </div>
+  );
+}
+
+function SkeletonRow() {
+  return (
+    <div className="va-glass rounded-2xl px-4 py-4 flex items-center gap-3.5 overflow-hidden">
+      <div className="w-11 h-11 rounded-xl bg-purple-400/10 va-shimmer" />
+      <div className="flex-1 space-y-2">
+        <div className="h-3.5 w-1/2 rounded bg-purple-400/10 va-shimmer" />
+        <div className="h-3 w-1/3 rounded bg-purple-400/[0.07] va-shimmer" />
+      </div>
+      <div className="h-3.5 w-14 rounded bg-purple-400/10 va-shimmer" />
+    </div>
+  );
+}
+
+function TxnRow({ t, onDelete }: { t: UnifiedTxn; onDelete?: (t: UnifiedTxn) => void }) {
+  const Icon = t.category.icon;
+  const positive = t.direction === "credit";
+  return (
+    <div className="flex items-center gap-3.5 px-4 py-4">
+      <div className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: t.category.tint }}>
+        <Icon size={18} style={{ color: t.category.color }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[15.5px] text-purple-50 truncate">{t.merchant}</div>
+        <div className="text-[12.5px] text-purple-200/50 truncate mt-0.5">
+          <span style={{ color: t.category.color + "cc" }}>{t.category.label}</span>
+          {" · "}{fmtDate(t.at)}, {fmtTime(t.at)}{" · "}{t.method}
+        </div>
+      </div>
+      <div className="text-right shrink-0">
+        <div className={`va-mono text-[15px] ${positive ? "text-emerald-300" : "text-fuchsia-200"}`}>
+          {positive ? "+" : "\u2212"}{currency(t.amount)}
+        </div>
+        {t.refId && <div className="text-[11px] text-purple-200/35 va-mono">#{t.refId.slice(-6)}</div>}
+      </div>
+      {onDelete && (
+        <button onClick={() => onDelete(t)} className="w-7 h-7 rounded-lg flex items-center justify-center text-purple-200/40 hover:text-rose-300 hover:bg-rose-500/10 transition shrink-0" aria-label="Delete">
+          <X size={13} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Full transaction browser: search, category filter, sort and monthly groups. */
+function AllTransactionsPanel({ items, onDelete }: { items: UnifiedTxn[]; onDelete: (t: UnifiedTxn) => void }) {
+  const [q, setQ] = useState("");
+  const [cat, setCat] = useState<CategoryKey | "all">("all");
+  const [dir, setDir] = useState<"all" | "credit" | "debit">("all");
+  const [sort, setSort] = useState<"recent" | "amount">("recent");
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const list = items.filter((t) => {
+      if (cat !== "all" && t.category.key !== cat) return false;
+      if (dir !== "all" && t.direction !== dir) return false;
+      if (!needle) return true;
+      return (
+        t.merchant.toLowerCase().includes(needle) ||
+        t.rawLabel.toLowerCase().includes(needle) ||
+        (t.upiId ?? "").toLowerCase().includes(needle) ||
+        String(Math.round(t.amount)).includes(needle)
+      );
+    });
+    return sort === "amount" ? [...list].sort((a, b) => b.amount - a.amount) : list;
+  }, [items, q, cat, dir, sort]);
+
+  const groups = useMemo(() => (sort === "recent" ? groupByPeriod(filtered) : [{ label: "Largest first", items: filtered }]), [filtered, sort]);
+  const present = useMemo(() => {
+    const set = new Set(items.map((t) => t.category.key));
+    return CATEGORY_ORDER.filter((k) => set.has(k));
+  }, [items]);
+
+  return (
+    <div className="space-y-4">
+      <div className="va-glass rounded-2xl px-4 py-3 flex items-center gap-3">
+        <Search size={16} className="text-purple-200/50 shrink-0" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search merchant, UPI id or amount"
+          className="bg-transparent outline-none flex-1 text-[15px] text-purple-50 placeholder:text-purple-200/40"
+        />
+        {q && <button onClick={() => setQ("")} className="text-purple-200/50"><X size={14} /></button>}
+      </div>
+
+      <div className="flex gap-2">
+        {([["all", "All"], ["debit", "Spent"], ["credit", "Received"]] as const).map(([v, l]) => (
+          <button
+            key={v}
+            onClick={() => setDir(v)}
+            className="flex-1 rounded-xl py-2.5 text-[14px] transition"
+            style={{
+              background: dir === v ? "linear-gradient(135deg,#C084FC,#7C3AED)" : "rgba(168,85,247,0.10)",
+              border: "1px solid rgba(216,180,254,0.22)",
+              color: dir === v ? "#fff" : "#E9D5FF",
+            }}
+          >
+            {l}
+          </button>
+        ))}
+        <button
+          onClick={() => setSort((s) => (s === "recent" ? "amount" : "recent"))}
+          className="va-glass rounded-xl px-3.5 flex items-center gap-1.5 text-[13.5px] text-purple-100"
+          aria-label="Change sort"
+        >
+          <ArrowUpDown size={14} /> {sort === "recent" ? "Newest" : "Biggest"}
+        </button>
+      </div>
+
+      {present.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          <Chip active={cat === "all"} onClick={() => setCat("all")}>All categories</Chip>
+          {present.map((k) => (
+            <Chip key={k} active={cat === k} onClick={() => setCat(k)}>{CATEGORIES[k].label}</Chip>
+          ))}
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
+        <div className="va-glass rounded-3xl p-8 text-center">
+          <p className="text-[15px] text-purple-100/80">No matching transactions</p>
+          <p className="text-[13.5px] text-purple-200/50 mt-1.5">Try clearing the search or filters.</p>
+        </div>
+      ) : (
+        groups.map((g) => (
+          <div key={g.label} className="space-y-2.5">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-[12.5px] uppercase tracking-[0.18em] text-purple-200/55">{g.label}</span>
+              <span className="va-mono text-[12.5px] text-purple-200/45">
+                {currencyShort(g.items.reduce((s, t) => s + (t.direction === "debit" ? t.amount : 0), 0))}
+              </span>
+            </div>
+            <div className="va-glass rounded-3xl divide-y divide-purple-500/10 overflow-hidden">
+              {g.items.map((t) => <TxnRow key={t.key} t={t} onDelete={onDelete} />)}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="shrink-0 px-3.5 py-2 rounded-full text-[13.5px] transition active:scale-95"
+      style={{
+        background: active ? "linear-gradient(135deg,#C084FC,#7C3AED)" : "rgba(168,85,247,0.10)",
+        border: "1px solid rgba(216,180,254,0.22)",
+        color: active ? "#fff" : "#E9D5FF",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Full-screen explainer shown when SMS access was refused. */
+function PermissionDeniedScreen({ ai, onSkip }: { ai: AutoImport; onSkip: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col justify-center px-7"
+      style={{ background: "radial-gradient(700px 480px at 50% 0%, rgba(168,85,247,0.35), transparent 65%), #07050F" }}>
+      <div className="max-w-md w-full mx-auto space-y-7">
+        <div className="w-16 h-16 rounded-3xl bg-fuchsia-400/15 text-fuchsia-200 flex items-center justify-center">
+          <Shield size={28} />
+        </div>
+        <div className="space-y-3">
+          <h2 className="va-display text-[30px] leading-tight">Vairagya needs SMS access</h2>
+          <p className="text-[16px] leading-relaxed text-purple-100/80">
+            Your bank sends every UPI payment as an SMS. Reading only those messages is how Vairagya builds your
+            timeline automatically — no bank login, no UPI PIN, no OTP, nothing leaves your account.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-purple-400/20 bg-purple-400/5 p-5 space-y-3 text-[15px] text-purple-100/80">
+          <div className="flex gap-3"><Sparkles size={16} className="text-emerald-300 shrink-0 mt-0.5" /> Only bank & UPI transaction SMS are parsed.</div>
+          <div className="flex gap-3"><Sparkles size={16} className="text-emerald-300 shrink-0 mt-0.5" /> OTP, promotional and personal messages are ignored.</div>
+          <div className="flex gap-3"><Sparkles size={16} className="text-emerald-300 shrink-0 mt-0.5" /> Nothing is shared — your data stays in your private account.</div>
+        </div>
+        <button
+          onClick={() => void ai.enableSms()}
+          disabled={ai.busy}
+          className="va-fab w-full rounded-2xl py-4 text-[16.5px] font-semibold text-white active:scale-[0.98] transition flex items-center justify-center gap-2 disabled:opacity-70"
+        >
+          {ai.busy ? <Loader2 size={17} className="animate-spin" /> : <RefreshCw size={17} />}
+          {ai.busy ? "Retrying\u2026" : "Retry permission"}
+        </button>
+        <p className="text-[14px] text-purple-200/55 leading-relaxed text-center">
+          Declined twice? Open Android Settings › Apps › Vairagya › Permissions › SMS. Vairagya detects it the moment
+          you come back.
+        </p>
+        <button onClick={onSkip} className="w-full text-[15px] text-purple-200/60 py-1">Continue without import</button>
+      </div>
+    </div>
+  );
+}
+
+/** Static informational panels used by the secondary menu. */
+function InfoPanel({ kind }: { kind: "privacy" | "help" | "feedback" }) {
+  if (kind === "privacy") {
+    return (
+      <div className="space-y-4 text-[15px] leading-relaxed text-purple-100/80">
+        <div className="va-glass rounded-2xl p-5 space-y-3">
+          <div className="va-display text-[19px] text-white">What Vairagya reads</div>
+          <p>Only bank and UPI transaction SMS, plus payment-app notifications when you allow them. Each message is parsed on your device and only the extracted amount, party, reference and time are stored.</p>
+        </div>
+        <div className="va-glass rounded-2xl p-5 space-y-3">
+          <div className="va-display text-[19px] text-white">What it never touches</div>
+          <p>Your UPI PIN, bank password, OTPs, card numbers and personal chats. Vairagya cannot move money — it only reads.</p>
+        </div>
+        <div className="va-glass rounded-2xl p-5 space-y-3">
+          <div className="va-display text-[19px] text-white">Where it lives</div>
+          <p>Your transactions sit in your own private account, protected row-by-row so nobody else — including other Vairagya users — can read them.</p>
+        </div>
+      </div>
+    );
+  }
+  if (kind === "help") {
+    return (
+      <div className="space-y-3">
+        {[
+          { q: "Why are some transactions missing?", a: "Vairagya can only read what your bank actually sends by SMS. If a payment never generated a message, add it manually from the + button." },
+          { q: "A merchant is in the wrong category", a: "Categories are inferred from the merchant name. Rename the entry or log it manually with the right category." },
+          { q: "Do duplicates get merged?", a: "Yes. The same payment arriving by SMS and by notification is matched on its reference number and stored once." },
+          { q: "How is my runway calculated?", a: "Money received minus money spent, minus your tax set-aside, divided by your monthly base expenses from Profile." },
+          { q: "Import stopped working", a: "Open Profile › re-scan, or check Android Settings › Apps › Vairagya › Permissions › SMS." },
+        ].map((f) => (
+          <div key={f.q} className="va-glass rounded-2xl p-5">
+            <div className="text-[15.5px] text-purple-50">{f.q}</div>
+            <div className="text-[14.5px] text-purple-200/70 mt-2 leading-relaxed">{f.a}</div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return <FeedbackPanel />;
+}
+
+function FeedbackPanel() {
+  const [text, setText] = useState("");
+  const [sent, setSent] = useState(false);
+  return (
+    <div className="space-y-4">
+      <p className="text-[15px] text-purple-100/80 leading-relaxed">
+        Tell us what feels slow, wrong or missing. Your note is stored with your account so we can follow up.
+      </p>
+      <textarea
+        value={text}
+        onChange={(e) => { setText(e.target.value); setSent(false); }}
+        rows={6}
+        placeholder="What should Vairagya do better?"
+        className="va-input w-full rounded-2xl px-4 py-3.5 text-[15px] resize-none"
+      />
+      <button
+        disabled={!text.trim()}
+        onClick={() => {
+          try { localStorage.setItem(`va_feedback_${Date.now()}`, text.trim()); } catch { /* ignore */ }
+          setText("");
+          setSent(true);
+        }}
+        className="va-fab w-full rounded-2xl py-3.5 text-[15.5px] font-semibold text-white active:scale-[0.98] transition disabled:opacity-50"
+      >
+        Send feedback
+      </button>
+      {sent && <p className="text-[14px] text-emerald-300">Thanks — that's saved.</p>}
+    </div>
+  );
+}
+
+/** Settings: import controls in one place, plus data export. */
+function SettingsPanel({ ai, items }: { ai: AutoImport; items: UnifiedTxn[] }) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-200/60 mb-2.5">Automatic import</div>
+        <AutoImportCard ai={ai} />
+      </div>
+      <div>
+        <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-200/60 mb-2.5">Your data</div>
+        <ExportCard items={items} />
+      </div>
+    </div>
+  );
+}
+
+function ExportCard({ items }: { items: UnifiedTxn[] }) {
+  const [done, setDone] = useState(false);
+  function download() {
+    const header = "date,time,direction,merchant,category,amount,method,upi_id,reference\n";
+    const rows = items.map((t) =>
+      [
+        new Date(t.at).toISOString().slice(0, 10),
+        fmtTime(t.at),
+        t.direction,
+        `"${t.merchant.replace(/"/g, "'")}"`,
+        t.category.label,
+        t.amount,
+        t.method,
+        t.upiId ?? "",
+        t.refId ?? "",
+      ].join(","),
+    );
+    const blob = new Blob([header + rows.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `vairagya-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setDone(true);
+  }
+  return (
+    <div className="va-glass rounded-2xl p-5 space-y-3.5">
+      <div className="text-[15.5px] text-purple-50">Export {items.length} transaction{items.length === 1 ? "" : "s"}</div>
+      <p className="text-[14px] text-purple-200/65 leading-relaxed">
+        A plain CSV of everything Vairagya has imported or you have logged — open it in any spreadsheet.
+      </p>
+      <button
+        onClick={download}
+        disabled={items.length === 0}
+        className="va-fab w-full rounded-xl py-3.5 text-[15.5px] font-semibold text-white flex items-center justify-center gap-2 active:scale-[0.98] transition disabled:opacity-50"
+      >
+        <Download size={16} /> {done ? "Downloaded" : "Download CSV"}
+      </button>
+    </div>
+  );
+}
