@@ -250,6 +250,8 @@ function Dashboard() {
         .va-ring { animation: pulseRing 3.5s ease-in-out infinite; }
         @keyframes sheetUp { from{transform:translateY(100%);opacity:0} to{transform:translateY(0);opacity:1} }
         .va-sheet { animation: sheetUp .25s ease-out; }
+        @keyframes shimmer { 0%{opacity:.45} 50%{opacity:.9} 100%{opacity:.45} }
+        .va-shimmer { animation: shimmer 1.4s ease-in-out infinite; }
         .va-divider { height:1px; background: linear-gradient(90deg, transparent, rgba(168,85,247,0.35), transparent); }
       `}</style>
 
@@ -447,7 +449,11 @@ function Dashboard() {
           </div>
         </div>
 
-        {onboarding && <ImportOnboarding ai={ai} onDone={finishOnboarding} />}
+        {onboarding && ai.phase === "denied" ? (
+          <PermissionDeniedScreen ai={ai} onSkip={finishOnboarding} />
+        ) : onboarding ? (
+          <ImportOnboarding ai={ai} onDone={finishOnboarding} />
+        ) : null}
 
         {tab !== "home" && (
           <SecondarySheet
@@ -459,6 +465,11 @@ function Dashboard() {
               tab === "reminders" ? "Reminders & alarms" :
               tab === "upi" ? "UPI transactions" :
               tab === "ai" ? "AI insights" :
+              tab === "all" ? "All transactions" :
+              tab === "settings" ? "Settings" :
+              tab === "privacy" ? "Privacy" :
+              tab === "help" ? "Help" :
+              tab === "feedback" ? "Feedback" :
               "Calculator"
             }
             onClose={() => setTab("home")}
@@ -491,7 +502,12 @@ function Dashboard() {
             )}
             {tab === "calc" && <CalculatorPanel />}
             {tab === "upi" && <UpiPanel ai={ai} />}
-            {tab === "ai" && <AIInsightsPanel />}
+            {tab === "ai" && <AIInsightsPanel items={items} taxRate={taxRate} />}
+            {tab === "all" && <AllTransactionsPanel items={items} onDelete={removeTxn} />}
+            {tab === "settings" && <SettingsPanel ai={ai} items={items} />}
+            {tab === "privacy" && <InfoPanel kind="privacy" />}
+            {tab === "help" && <InfoPanel kind="help" />}
+            {tab === "feedback" && <InfoPanel kind="feedback" />}
             {tab === "profile" && (
               <ProfilePanel
                 taxRate={taxRate}
@@ -601,22 +617,27 @@ function Dashboard() {
 
 
         {sheet === "menu" && (
-          <BottomSheet title="Quick menu" onClose={() => setSheet(null)}>
+          <BottomSheet title="Menu" onClose={() => setSheet(null)}>
             {[
-              { icon: Smartphone, label: "UPI transactions", onClick: () => { setTab("upi"); setSheet(null); } },
-              { icon: Brain, label: "AI insights", onClick: () => { setTab("ai"); setSheet(null); } },
-              { icon: PieChart, label: "Insights & ring chart", onClick: () => { setTab("insights"); setSheet(null); } },
-              { icon: BellRing, label: "Reminders & alarms", onClick: () => { setTab("reminders"); setSheet(null); } },
-              { icon: Calculator, label: "Quick calculator", onClick: () => { setTab("calc"); setSheet(null); } },
-              { icon: Wallet, label: "View income ledger", onClick: () => { setTab("ledger"); setSheet(null); } },
-              { icon: Receipt, label: "View expenses", onClick: () => { setTab("expenses"); setSheet(null); } },
-              { icon: Percent, label: "Adjust tax rate", onClick: () => { setTab("profile"); setSheet(null); } },
-              { icon: LogOut, label: "Sign out", onClick: signOut },
+              { icon: User, label: "Profile", desc: "Tax rate, runway, base expenses", onClick: () => { setTab("profile"); setSheet(null); } },
+              { icon: Settings, label: "Settings", desc: "Automatic import & data", onClick: () => { setTab("settings"); setSheet(null); } },
+              { icon: Smartphone, label: "UPI transactions", desc: "Imported UPI activity", onClick: () => { setTab("upi"); setSheet(null); } },
+              { icon: Download, label: "Export data", desc: "Download everything as CSV", onClick: () => { setTab("settings"); setSheet(null); } },
+              { icon: Shield, label: "Privacy", desc: "What Vairagya reads", onClick: () => { setTab("privacy"); setSheet(null); } },
+              { icon: HelpCircle, label: "Help", desc: "Common questions", onClick: () => { setTab("help"); setSheet(null); } },
+              { icon: MessageSquare, label: "Feedback", desc: "Tell us what to fix", onClick: () => { setTab("feedback"); setSheet(null); } },
+              { icon: Calculator, label: "Calculator", desc: "Quick maths", onClick: () => { setTab("calc"); setSheet(null); } },
+              { icon: LogOut, label: "Log out", desc: "End this session", onClick: signOut },
             ].map((m) => (
-              <button key={m.label} onClick={m.onClick} className="va-glass rounded-xl px-4 py-3 flex items-center gap-3 w-full text-left active:scale-[0.99] transition">
-                <m.icon size={16} className="text-fuchsia-300" />
-                <span className="text-[15px] text-purple-50">{m.label}</span>
-                <ChevronRight size={14} className="ml-auto text-purple-300/60" />
+              <button key={m.label} onClick={m.onClick} className="va-glass rounded-2xl px-4 py-3.5 flex items-center gap-3.5 w-full text-left active:scale-[0.99] transition">
+                <span className="w-10 h-10 rounded-xl bg-fuchsia-400/12 text-fuchsia-200 flex items-center justify-center shrink-0">
+                  <m.icon size={17} />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[15.5px] text-purple-50">{m.label}</span>
+                  <span className="block text-[13px] text-purple-200/55 truncate">{m.desc}</span>
+                </span>
+                <ChevronRight size={15} className="text-purple-300/60 shrink-0" />
               </button>
             ))}
           </BottomSheet>
@@ -1334,18 +1355,20 @@ function UpiPanel({ ai }: { ai: AutoImport }) {
   );
 }
 
-function AIInsightsPanel() {
+function AIInsightsPanel({ items, taxRate }: { items: UnifiedTxn[]; taxRate: number }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [insights, setInsights] = useState<{ title: string; body: string; tone: "positive" | "neutral" | "warning" }[]>([]);
   const [lastRun, setLastRun] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
 
   async function refresh() {
     setLoading(true);
     setError(null);
     try {
-      const list = await fetchInsights();
+      const { insights: list, offline } = await fetchInsights(items, taxRate);
       setInsights(list);
+      setOffline(offline);
       setLastRun(new Date().toLocaleTimeString());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to generate insights");
@@ -1418,7 +1441,8 @@ function AIInsightsPanel() {
       )}
 
       {lastRun && (
-        <div className="text-[12.5px] text-purple-200/40 text-center">Last updated {lastRun}</div>
+        <div className="text-[12.5px] text-purple-200/40 text-center">
+          {offline ? "Generated on this device · " : ""}Last updated {lastRun}</div>
       )}
     </div>
   );
