@@ -67,9 +67,12 @@ jobs:
           convert resources/icon-only.png -resize 48x48 android/app/src/main/res/drawable/ic_stat_icon.png
 
 
-      - name: Patch AndroidManifest.xml (permissions + SMS query)
-        run: |
-          python3 scripts/patch-android-manifest.py
+      -  name: Patch AndroidManifest.xml (permissions + SMS query)
+         run: |
+            pwd
+            ls -R
+            ls -R android-native || true
+            python3 scripts/patch-android-manifest.py
 
       - name: Build debug APK
         working-directory: android
