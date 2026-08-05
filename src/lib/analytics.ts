@@ -80,7 +80,12 @@ export function unify(manual: ManualRow[], upi: UpiRow[]): UnifiedTxn[] {
       upiId: u.upi_id ?? null,
       refId: u.ref_id ?? null,
       bank: u.bank ?? null,
-      method: u.source === "notification" ? "UPI · notification" : u.source === "manual" ? "UPI · manual" : "UPI",
+      method:
+        u.source === "notification"
+          ? "UPI · notification"
+          : u.source === "manual"
+            ? "UPI · manual"
+            : "UPI",
       category: categorize(raw, u.direction),
     };
   });
@@ -115,7 +120,12 @@ export function summarize(items: UnifiedTxn[], now = new Date()): Summary {
   const weekStart = dayStart - 6 * 86400000;
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
-  let todaySpend = 0, weekSpend = 0, monthSpend = 0, monthReceived = 0, received = 0, spent = 0;
+  let todaySpend = 0,
+    weekSpend = 0,
+    monthSpend = 0,
+    monthReceived = 0,
+    received = 0,
+    spent = 0;
   const merchants = new Map<string, { total: number; count: number }>();
   const cats = new Map<CategoryKey, { meta: CategoryMeta; total: number; count: number }>();
   const todayItems: UnifiedTxn[] = [];
@@ -138,17 +148,22 @@ export function summarize(items: UnifiedTxn[], now = new Date()): Summary {
     if (t.direction === "debit") {
       spent += t.amount;
       bucket.spend += t.amount;
-      if (ts >= dayStart) { todaySpend += t.amount; todayItems.push(t); }
+      if (ts >= dayStart) {
+        todaySpend += t.amount;
+        todayItems.push(t);
+      }
       if (ts >= weekStart) weekSpend += t.amount;
       if (ts >= monthStart) monthSpend += t.amount;
       if (!highestExpense || t.amount > highestExpense.amount) highestExpense = t;
 
       const m = merchants.get(t.merchant) ?? { total: 0, count: 0 };
-      m.total += t.amount; m.count += 1;
+      m.total += t.amount;
+      m.count += 1;
       merchants.set(t.merchant, m);
 
       const c = cats.get(t.category.key) ?? { meta: t.category, total: 0, count: 0 };
-      c.total += t.amount; c.count += 1;
+      c.total += t.amount;
+      c.count += 1;
       cats.set(t.category.key, c);
     } else {
       received += t.amount;
@@ -160,7 +175,8 @@ export function summarize(items: UnifiedTxn[], now = new Date()): Summary {
 
   let topMerchant: Summary["topMerchant"] = null;
   for (const [name, v] of merchants) {
-    if (!topMerchant || v.total > topMerchant.total) topMerchant = { name, total: v.total, count: v.count };
+    if (!topMerchant || v.total > topMerchant.total)
+      topMerchant = { name, total: v.total, count: v.count };
   }
 
   const monthlyTrend = [...months.entries()]
@@ -169,7 +185,12 @@ export function summarize(items: UnifiedTxn[], now = new Date()): Summary {
     .map(([, v]) => v);
 
   return {
-    todaySpend, weekSpend, monthSpend, monthReceived, received, spent,
+    todaySpend,
+    weekSpend,
+    monthSpend,
+    monthReceived,
+    received,
+    spent,
     net: received - spent,
     highestExpense,
     topMerchant,
@@ -189,8 +210,10 @@ export function groupByPeriod(items: UnifiedTxn[]): { label: string; items: Unif
   for (const t of items) {
     const ts = new Date(t.at).getTime();
     const label =
-      ts >= dayStart ? "Today"
-        : ts >= dayStart - 86400000 ? "Yesterday"
+      ts >= dayStart
+        ? "Today"
+        : ts >= dayStart - 86400000
+          ? "Yesterday"
           : new Date(t.at).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
     if (!index.has(label)) {
       index.set(label, out.length);

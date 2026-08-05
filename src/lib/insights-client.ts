@@ -22,7 +22,12 @@ export function apiOrigin(): string {
   const { protocol, hostname, origin } = window.location;
   // Capacitor serves the app from https://localhost or capacitor://localhost.
   const isNativeShell =
-    protocol === "capacitor:" || protocol === "file:" || hostname === "localhost" && !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.();
+    protocol === "capacitor:" ||
+    protocol === "file:" ||
+    (hostname === "localhost" &&
+      !!(
+        window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }
+      ).Capacitor?.isNativePlatform?.());
   return isNativeShell ? FALLBACK_ORIGIN : origin;
 }
 
@@ -42,7 +47,10 @@ export async function fetchInsights(
   fallbackItems: UnifiedTxn[] = [],
   taxRate = 27,
 ): Promise<InsightsResult> {
-  const local = (): InsightsResult => ({ insights: localInsights(fallbackItems, taxRate), offline: true });
+  const local = (): InsightsResult => ({
+    insights: localInsights(fallbackItems, taxRate),
+    offline: true,
+  });
 
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;

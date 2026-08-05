@@ -76,10 +76,7 @@ export function useAutoImport(onImported: () => void) {
   const importedRef = useRef(onImported);
   importedRef.current = onImported;
   const runningRef = useRef(false);
-  const patch = useCallback(
-    (p: Partial<AutoImportState>) => setState((s) => ({ ...s, ...p })),
-    [],
-  );
+  const patch = useCallback((p: Partial<AutoImportState>) => setState((s) => ({ ...s, ...p })), []);
 
   /** Full-inbox scan + import. Safe to call repeatedly. */
   const runFullScan = useCallback(async () => {
@@ -165,7 +162,9 @@ export function useAutoImport(onImported: () => void) {
           const { inserted } = await ingestTransactions(parsed);
           if (inserted > 0) {
             importedRef.current();
-            patch({ status: `Auto-imported ${inserted} new transaction${inserted === 1 ? "" : "s"}.` });
+            patch({
+              status: `Auto-imported ${inserted} new transaction${inserted === 1 ? "" : "s"}.`,
+            });
           }
         } catch (e) {
           ilog("db", `live SMS write failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -221,7 +220,11 @@ export function useAutoImport(onImported: () => void) {
         const [sms, notif] = await Promise.all([checkSmsPermission(), hasNotificationAccess()]);
         if (cancelled) return;
         setState((s) => {
-          if (sms && !s.smsGranted) void (async () => { await attachSms(); await runFullScan(); })();
+          if (sms && !s.smsGranted)
+            void (async () => {
+              await attachSms();
+              await runFullScan();
+            })();
           if (notif && !s.notifGranted) void attachNotifications();
           return { ...s, smsGranted: sms, notifGranted: notif };
         });

@@ -63,7 +63,10 @@ export function localInsights(items: UnifiedTxn[], taxRate = 27): Insight[] {
     const diff = cur.spend - prev.spend;
     const pct = prev.spend > 0 ? Math.round((diff / prev.spend) * 100) : 0;
     out.push({
-      title: diff >= 0 ? `Spending up ${Math.abs(pct)}% vs ${prev.label}` : `Spending down ${Math.abs(pct)}% vs ${prev.label}`,
+      title:
+        diff >= 0
+          ? `Spending up ${Math.abs(pct)}% vs ${prev.label}`
+          : `Spending down ${Math.abs(pct)}% vs ${prev.label}`,
       body: `${cur.label}: ${inr(cur.spend)} against ${prev.label}: ${inr(prev.spend)}.`,
       tone: diff > 0 ? "warning" : "positive",
     });
@@ -72,9 +75,10 @@ export function localInsights(items: UnifiedTxn[], taxRate = 27): Insight[] {
   const savings = Math.max(0, s.received - s.spent);
   out.push({
     title: "Savings estimate",
-    body: s.received > 0
-      ? `You keep ${Math.round((savings / s.received) * 100)}% of what you earn — about ${inr(savings)} banked so far.`
-      : "Log or import income to see your savings rate.",
+    body:
+      s.received > 0
+        ? `You keep ${Math.round((savings / s.received) * 100)}% of what you earn — about ${inr(savings)} banked so far.`
+        : "Log or import income to see your savings rate.",
     tone: s.received > 0 && savings / s.received > 0.2 ? "positive" : "neutral",
   });
 
