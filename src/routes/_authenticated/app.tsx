@@ -180,6 +180,7 @@ function Dashboard() {
   const upiOut = useMemo(() => upiTxns.filter((u) => u.direction === "debit").reduce((s, u) => s + Number(u.amount), 0), [upiTxns]);
   const totalIncome = income.reduce((s, i) => s + Number(i.amount), 0) + upiIn;
   const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0) + upiOut;
+  void upiIn; void upiOut;
   const netIncome = totalIncome - totalExpenses;
   const setAside = Math.max(0, netIncome * (taxRate / 100));
   const safeToSpend = netIncome - setAside;
@@ -203,27 +204,9 @@ function Dashboard() {
     navigate({ to: "/auth", replace: true });
   }
 
-  const recent = useMemo(() => {
-    const a = txns.map((t) => ({
-      key: t.id,
-      kind: t.kind === "income" ? ("in" as const) : ("out" as const),
-      label: t.label,
-      meta: t.kind === "income" ? fmtDate(t.occurred_at) : (t.category ?? "—"),
-      amount: Number(t.amount),
-      at: t.occurred_at,
-      upi: false,
-    }));
-    const b = upiTxns.map((u) => ({
-      key: `upi-${u.id}`,
-      kind: u.direction === "credit" ? ("in" as const) : ("out" as const),
-      label: u.counterparty,
-      meta: `UPI · ${u.upi_id ?? "—"}`,
-      amount: Number(u.amount),
-      at: u.occurred_at,
-      upi: true,
-    }));
-    return [...a, ...b].sort((x, y) => (x.at < y.at ? 1 : -1));
-  }, [txns, upiTxns]);
+  const items = useMemo(() => unify(txns, upiTxns as never), [txns, upiTxns]);
+  const summary = useMemo(() => summarize(items), [items]);
+  const recent = useMemo(() => items.slice(0, 6), [items]);
 
   const userName = profile?.display_name ?? "there";
 
