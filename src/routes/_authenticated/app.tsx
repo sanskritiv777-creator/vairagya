@@ -785,7 +785,7 @@ function ProfilePanel({
       <div>
         <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-200/60 mb-2">Monthly base expenses</div>
         <div className="va-glass rounded-2xl p-4 flex items-center gap-3">
-          <span className="text-purple-200/60 va-mono text-[15.5px]">$</span>
+          <span className="text-purple-200/60 va-mono text-[15.5px]">₹</span>
           <input
             type="number" inputMode="decimal" value={localBase}
             onChange={(e) => setLocalBase(e.target.value)}
@@ -868,7 +868,7 @@ function InsightsPanel({
               <div key={s.label} className="flex items-center gap-3 text-[14px]">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color }} />
                 <span className="text-purple-100/80 flex-1">{s.label}</span>
-                <span className="va-mono text-purple-50">${Math.round(s.value).toLocaleString()}</span>
+                <span className="va-mono text-purple-50">{currency(s.value)}</span>
                 <span className="va-mono text-purple-200/50 w-9 text-right">{pct}%</span>
               </div>
             );
@@ -879,7 +879,7 @@ function InsightsPanel({
       <div className="grid grid-cols-2 gap-3">
         <div className="va-glass rounded-2xl p-4">
           <div className="text-[12.5px] text-purple-200/60">Total earned</div>
-          <div className="va-display text-xl text-white mt-1">${Math.round(income).toLocaleString()}</div>
+          <div className="va-display text-xl text-white mt-1">{currency(income)}</div>
         </div>
         <div className="va-glass rounded-2xl p-4">
           <div className="text-[12.5px] text-purple-200/60">Effective tax</div>
@@ -1698,7 +1698,7 @@ function SkeletonRow() {
   );
 }
 
-function TxnRow({ t, onDelete }: { t: UnifiedTxn; onDelete?: (t: UnifiedTxn) => void }) {
+const TxnRow = memo(function TxnRow({ t, onDelete }: { t: UnifiedTxn; onDelete?: (t: UnifiedTxn) => void }) {
   const Icon = t.category.icon;
   const positive = t.direction === "credit";
   return (
