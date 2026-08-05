@@ -5,8 +5,12 @@ import {
   Plus, X, Bell, Menu, ArrowUpRight, ArrowDownLeft, Wallet,
   Percent, CalendarClock, Home, PieChart, Sparkles, ChevronRight,
   User, Receipt, LogOut, Loader2, Calculator, BellRing, Delete, Trash2,
-  Smartphone, Brain, RefreshCw, TrendingUp, AlertTriangle,
+  Smartphone, Brain, RefreshCw, TrendingUp, AlertTriangle, Search,
+  ArrowUpDown, Download, Shield, HelpCircle, MessageSquare, Settings,
+  Flame, Store, ArrowRight,
 } from "lucide-react";
+import { unify, summarize, groupByPeriod, type UnifiedTxn } from "@/lib/analytics";
+import { CATEGORIES, CATEGORY_ORDER, type CategoryKey } from "@/lib/categorize";
 import { supabase } from "@/integrations/supabase/client";
 import { ilog } from "@/lib/ingest-log";
 import { fetchInsights } from "@/lib/insights-client";
@@ -40,10 +44,16 @@ type Profile = {
 };
 
 function currency(n: number) {
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+  return `₹${Math.round(n).toLocaleString("en-IN")}`;
 }
 function currencyShort(n: number) {
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  const abs = Math.abs(n);
+  if (abs >= 1e7) return `₹${(n / 1e7).toFixed(abs >= 1e8 ? 0 : 1)}Cr`;
+  if (abs >= 1e5) return `₹${(n / 1e5).toFixed(abs >= 1e6 ? 0 : 1)}L`;
+  return `₹${Math.round(n).toLocaleString("en-IN")}`;
+}
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
 }
 function getGreeting() {
   const h = new Date().getHours();
