@@ -44,11 +44,17 @@ export function isSmsSupported(): boolean {
 /** Non-prompting check: is READ_SMS already granted? */
 export async function checkSmsPermission(): Promise<boolean> {
   const p = getPlugin();
+
+  console.log("SmsInbox plugin:", p);
+
   if (!p) return false;
+
   try {
     const current = await p.checkPermissions();
+    console.log("SMS permission result:", current);
     return current.sms === "granted";
-  } catch {
+  } catch (e) {
+    console.error("SMS permission error:", e);
     return false;
   }
 }
