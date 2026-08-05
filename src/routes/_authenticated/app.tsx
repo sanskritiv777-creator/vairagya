@@ -191,7 +191,7 @@ function Dashboard() {
   const nextDue = dueDates.find((d) => new Date(d) >= today) || dueDates[0];
   const daysUntilDue = Math.ceil((new Date(nextDue).getTime() - today.getTime()) / 86400000);
 
-  const [tab, setTab] = useState<"home" | "ledger" | "expenses" | "profile" | "insights" | "reminders" | "calc" | "upi" | "ai">("home");
+  const [tab, setTab] = useState<"home" | "ledger" | "expenses" | "profile" | "insights" | "reminders" | "calc" | "upi" | "ai" | "all" | "settings" | "privacy" | "help" | "feedback">("home");
   const [sheet, setSheet] = useState<null | "income" | "expense" | "transfer" | "menu" | "add">(null);
   const [newIncome, setNewIncome] = useState({ source: "", amount: "" });
   const [newExpense, setNewExpense] = useState({ label: "", amount: "", category: "Software" });
@@ -315,63 +315,114 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="px-6 mt-7">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="va-display text-[18px]">Transactions</h2>
-            {recent.length > 8 && (
-              <span className="text-[12.5px] text-purple-200/50">{recent.length} total</span>
-            )}
-          </div>
+        {/* ── Auto-derived money snapshot ─────────────────────────────── */}
+        <div className="px-6 mt-8 grid grid-cols-2 gap-3.5">
+          <StatCard label="Today" value={currencyShort(summary.todaySpend)} hint="spent" icon={Flame} accent="#FDBA74" />
+          <StatCard label="This week" value={currencyShort(summary.weekSpend)} hint="spent" icon={CalendarClock} accent="#F0ABFC" />
+          <StatCard label="This month" value={currencyShort(summary.monthSpend)} hint="spent" icon={PieChart} accent="#C4B5FD" />
+          <StatCard label="Received" value={currencyShort(summary.monthReceived)} hint="this month" icon={ArrowDownLeft} accent="#34D399" />
+        </div>
 
-          {upiTxns.length === 0 && (
+        <div className="px-6 mt-3.5 grid grid-cols-2 gap-3.5">
+          <StatCard
+            label="Net cashflow"
+            value={`${summary.net >= 0 ? "+" : "−"}${currencyShort(Math.abs(summary.net))}`}
+            hint="all time"
+            icon={TrendingUp}
+            accent={summary.net >= 0 ? "#6EE7B7" : "#FCA5A5"}
+          />
+          <StatCard
+            label="Top merchant"
+            value={summary.topMerchant?.name ?? "—"}
+            hint={summary.topMerchant ? currencyShort(summary.topMerchant.total) : "no data yet"}
+            icon={Store}
+            accent="#7DD3FC"
+            small
+          />
+        </div>
+
+        {summary.highestExpense && (
+          <div className="px-6 mt-3.5">
+            <div className="va-glass rounded-2xl px-5 py-4 flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(252,165,165,0.14)" }}>
+                <ArrowUpRight size={18} style={{ color: "#FCA5A5" }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13.5px] text-purple-200/60">Highest expense</div>
+                <div className="text-[15.5px] text-purple-50 truncate">{summary.highestExpense.merchant}</div>
+              </div>
+              <div className="va-mono text-[15.5px] text-fuchsia-200 shrink-0">{currency(summary.highestExpense.amount)}</div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Today's spending ─────────────────────────────────────────── */}
+        {summary.todayItems.length > 0 && (
+          <Section title="Today's spending" trailing={currency(summary.todaySpend)}>
+            <div className="va-glass rounded-3xl divide-y divide-purple-500/10 overflow-hidden">
+              {summary.todayItems.slice(0, 5).map((t) => <TxnRow key={t.key} t={t} />)}
+            </div>
+          </Section>
+        )}
+
+        {/* ── Money received ───────────────────────────────────────────── */}
+        {summary.receivedItems.length > 0 && (
+          <Section title="Received" trailing={currency(summary.received)}>
+            <div className="va-glass rounded-3xl divide-y divide-purple-500/10 overflow-hidden">
+              {summary.receivedItems.slice(0, 4).map((t) => <TxnRow key={t.key} t={t} />)}
+            </div>
+          </Section>
+        )}
+
+        {/* ── Recent activity ─────────────────────────────────────────── */}
+        <Section
+          title="Recent transactions"
+          action={items.length > 0 ? { label: "See all", onClick: () => setTab("all") } : undefined}
+        >
+          {ai.native && !ai.smsGranted && (
             <button
-              onClick={() => setTab("upi")}
-              className="w-full mb-3 rounded-2xl px-4 py-3 flex items-center gap-3 text-left active:scale-[0.99] transition"
+              onClick={() => void ai.enableSms()}
+              className="w-full mb-3.5 rounded-2xl px-5 py-4 flex items-center gap-3.5 text-left active:scale-[0.99] transition"
               style={{
-                background: "linear-gradient(135deg, rgba(168,85,247,0.14), rgba(34,211,238,0.06))",
+                background: "linear-gradient(135deg, rgba(168,85,247,0.16), rgba(34,211,238,0.06))",
                 border: "1px dashed rgba(216,180,254,0.35)",
               }}
             >
-              <div className="w-8 h-8 rounded-lg bg-fuchsia-400/15 text-fuchsia-200 flex items-center justify-center shrink-0">
-                <Smartphone size={14} />
+              <div className="w-10 h-10 rounded-xl bg-fuchsia-400/15 text-fuchsia-200 flex items-center justify-center shrink-0">
+                <Smartphone size={17} />
               </div>
-              <p className="text-[14px] leading-snug text-purple-100/85 flex-1">
-                Connect your UPI to automatically import your transactions.
+              <p className="text-[15px] leading-snug text-purple-100/85 flex-1">
+                Turn on automatic import to pull in your UPI history.
               </p>
-              <ChevronRight size={14} className="text-purple-300/60" />
+              <ArrowRight size={16} className="text-purple-300/70" />
             </button>
           )}
 
-          {recent.length === 0 ? (
-            <div className="va-glass rounded-2xl p-6 text-center">
-              <p className="text-[14.5px] text-purple-200/70">No transactions yet.</p>
-              <button onClick={() => setSheet("add")} className="mt-3 text-[14px] text-fuchsia-300">
-                Add your first transaction →
+          {(txnsQuery.isLoading || upiQuery.isLoading) ? (
+            <div className="space-y-2.5">
+              {[0, 1, 2].map((i) => <SkeletonRow key={i} />)}
+            </div>
+          ) : items.length === 0 ? (
+            <div className="va-glass rounded-3xl p-8 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-fuchsia-400/12 text-fuchsia-200 mx-auto flex items-center justify-center">
+                <Receipt size={22} />
+              </div>
+              <p className="text-[15.5px] text-purple-100/85 mt-4">Nothing here yet</p>
+              <p className="text-[14px] text-purple-200/55 mt-1.5 leading-relaxed">
+                {ai.native
+                  ? "Grant SMS access and your bank + UPI history appears automatically."
+                  : "Log your first entry to start tracking runway."}
+              </p>
+              <button onClick={() => setSheet("add")} className="mt-5 va-fab rounded-xl px-5 py-3 text-[15px] font-semibold text-white active:scale-[0.98] transition">
+                Add a transaction
               </button>
             </div>
           ) : (
-            <div className="va-glass rounded-2xl divide-y divide-purple-500/10">
-              {recent.map((r) => (
-                <div key={r.key} className="flex items-center gap-3 px-4 py-3">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${r.kind === "in" ? "bg-emerald-400/15 text-emerald-300" : "bg-fuchsia-400/15 text-fuchsia-300"}`}>
-                    {r.kind === "in" ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[15px] text-purple-50 truncate flex items-center gap-1.5">
-                      {r.label}
-                      {r.upi && <span className="text-[9px] px-1.5 py-0.5 rounded bg-fuchsia-500/20 text-fuchsia-200 tracking-wide">UPI</span>}
-                    </div>
-                    <div className="text-[12.5px] text-purple-200/50 truncate">{fmtDate(r.at)} · {r.meta}</div>
-                  </div>
-                  <div className={`va-mono text-[14.5px] shrink-0 ${r.kind === "in" ? "text-emerald-300" : "text-fuchsia-200"}`}>
-                    {r.kind === "in" ? "+" : "−"}{currency(r.amount)}
-                  </div>
-                </div>
-              ))}
+            <div className="va-glass rounded-3xl divide-y divide-purple-500/10 overflow-hidden">
+              {recent.map((t) => <TxnRow key={t.key} t={t} />)}
             </div>
           )}
-        </div>
-
+        </Section>
 
         <div className="px-6 mt-5">
           <div className="va-glass rounded-2xl p-4 flex items-start gap-3">
