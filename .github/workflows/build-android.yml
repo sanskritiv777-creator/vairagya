@@ -87,6 +87,17 @@ jobs:
          echo "===== notification files ====="
          find android -name "*Notification*"
 
+      -  name: Print Gradle files
+         run: |
+          echo "===== android/build.gradle ====="
+          cat android/build.gradle || true
+
+          echo "===== android/app/build.gradle ====="
+          cat android/app/build.gradle || true
+
+          echo "===== android/app/build.gradle.kts ====="
+          cat android/app/build.gradle.kts || true
+
       - name: Build debug APK
         working-directory: android
         run: chmod +x ./gradlew && ./gradlew assembleDebug
