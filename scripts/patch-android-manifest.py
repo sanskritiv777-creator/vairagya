@@ -155,6 +155,40 @@ def register_plugin() -> None:
         else:
             print(f"[patch-manifest] could not patch {main.name}; left unchanged")
 
+def patch_build_gradle() -> None:
+    build = ANDROID / "app/build.gradle"
+    if not build.exists():
+        print("[patch-manifest] build.gradle not found; skipping")
+        return
+
+    text = build.read_text()
+
+    if "org.jetbrains.kotlin.android" not in text:
+        text = text.replace(
+            "apply plugin: 'com.android.application'",
+            "apply plugin: 'com.android.application'\napply plugin: 'org.jetbrains.kotlin.android'"
+        )
+        print("[patch-manifest] enabled Kotlin Android plugin")
+
+    build.write_text(text)
+
+def patch_root_build_gradle() -> None:
+    build = ANDROID / "build.gradle"
+    if not build.exists():
+        print("[patch-manifest] root build.gradle not found; skipping")
+        return
+
+    text = build.read_text()
+
+    if "kotlin-gradle-plugin" not in text:
+        text = text.replace(
+            "classpath 'com.google.gms:google-services:4.4.4'",
+            "classpath 'com.google.gms:google-services:4.4.4'\n        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.21'"
+        )
+        print("[patch-manifest] added Kotlin Gradle plugin")
+
+    build.write_text(text)
+
 
 def main() -> int:
     if not MANIFEST.exists():
@@ -162,6 +196,8 @@ def main() -> int:
         return 0
     patch_manifest()
     copy_native_sources()
+    patch_build_gradle()
+    patch_root_build_gradle()
     register_plugin()
     return 0
 
