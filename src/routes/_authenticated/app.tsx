@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Plus, X, Bell, Menu, ArrowUpRight, ArrowDownLeft, Wallet,
+  Plus, X, Bell, Menu, ArrowUpRight, ArrowDownLeft,
   Percent, CalendarClock, Home, PieChart, Sparkles, ChevronRight,
   User, Receipt, LogOut, Loader2, Calculator, BellRing, Delete, Trash2,
   Smartphone, Brain, RefreshCw, TrendingUp, AlertTriangle, Search,
@@ -158,6 +158,19 @@ function Dashboard() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["transactions"] }),
   });
+
+  const removeUnified = useMutation({
+    mutationFn: async (t: UnifiedTxn) => {
+      const table = t.source === "upi" ? "upi_transactions" : "transactions";
+      const { error } = await supabase.from(table as never).delete().eq("id", t.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["transactions"] });
+      void qc.invalidateQueries({ queryKey: ["upi_transactions"] });
+    },
+  });
+  const removeTxn = (t: UnifiedTxn) => removeUnified.mutate(t);
 
   const updateProfile = useMutation({
     mutationFn: async (p: Partial<Profile>) => {
@@ -1448,68 +1461,16 @@ function AIInsightsPanel({ items, taxRate }: { items: UnifiedTxn[]; taxRate: num
   );
 }
 
-function HomeAIInsights({ onOpen }: { onOpen: () => void }) {
-  const [loading, setLoading] = useState(true);
-  const [top, setTop] = useState<{ title: string; body: string; tone: "positive" | "neutral" | "warning" } | null>(null);
-  const [count, setCount] = useState(0);
-
-  async function refresh() {
-    setLoading(true);
-    try {
-      const list = await fetchInsights();
-      setTop(list[0] ?? null);
-      setCount(list.length);
-    } catch {
-      setTop(null);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
-
-  const toneColor =
-    top?.tone === "positive" ? "#6EE7B7" :
-    top?.tone === "warning" ? "#FCA5A5" :
-    "#F0ABFC";
-
-  return (
-    <button
-      onClick={onOpen}
-      className="w-full text-left rounded-2xl p-4 relative overflow-hidden active:scale-[0.99] transition"
-      style={{
-        background: "linear-gradient(135deg, rgba(168,85,247,0.22), rgba(34,211,238,0.10))",
-        border: "1px solid rgba(216,180,254,0.28)",
-        boxShadow: "0 20px 40px -24px rgba(168,85,247,0.6)",
-      }}
-    >
-      <div className="flex items-center gap-2 mb-2">
-        <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center">
-          <Brain size={14} className="text-fuchsia-100" />
-        </div>
-        <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-100/80">AI insights</div>
-        <div className="ml-auto flex items-center gap-1 text-[12.5px] text-purple-100/70">
-          {loading ? <Loader2 size={12} className="animate-spin" /> : count > 1 ? `+${count - 1} more` : "Tap to open"}
-          <ChevronRight size={12} />
-        </div>
-      </div>
-      {loading && !top ? (
-        <div className="text-[14.5px] text-purple-100/70">Reading your patterns…</div>
-      ) : top ? (
-        <>
-          <div className="text-[15px] text-white font-medium leading-snug">{top.title}</div>
-          <div className="text-[13.5px] text-purple-100/75 mt-1 leading-relaxed line-clamp-2" style={{ color: toneColor + "cc" }}>
-            {top.body}
-          </div>
-        </>
-      ) : (
-        <div className="text-[14.5px] text-purple-100/70">Add a few transactions to unlock insights.</div>
-      )}
-    </button>
-  );
-}
-
 function ImportOnboarding({ ai, onDone }: { ai: AutoImport; onDone: () => void }) {
+  // Ask straight away — the user just signed in and expects import to happen.
+  const asked = useRef(false);
+  useEffect(() => {
+    if (asked.current || ai.smsGranted || ai.phase !== "idle") return;
+    asked.current = true;
+    void ai.enableSms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ai.phase, ai.smsGranted]);
+
   const running = ai.phase === "requesting" || ai.phase === "scanning" || ai.phase === "saving";
   const done = ai.phase === "live";
   return (
