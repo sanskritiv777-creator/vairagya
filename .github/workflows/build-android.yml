@@ -35,6 +35,11 @@ jobs:
 
       - name: Sync Capacitor
         run: bunx cap sync android
+    
+      - name: Debug Android files
+        run: |
+          echo "===== JAVA/KOTLIN FILES ====="
+          find android/app/src/main/java -type f
 
       - name: Prepare launcher icon + splash source images
         run: node scripts/prepare-android-assets.mjs
