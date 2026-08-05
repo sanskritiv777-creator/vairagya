@@ -74,6 +74,19 @@ jobs:
             ls -R android-native || true
             python3 scripts/patch-android-manifest.py
 
+      - name: Debug copied files
+        run: |
+         echo "===== android-native ====="
+         find android-native -type f
+
+         echo ""
+         echo "===== android/app/src/main/java ====="
+         find android/app/src/main/java -type f
+
+         echo ""
+         echo "===== notification files ====="
+         find android -name "*Notification*"
+
       - name: Build debug APK
         working-directory: android
         run: chmod +x ./gradlew && ./gradlew assembleDebug
