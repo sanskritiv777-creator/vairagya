@@ -1726,7 +1726,8 @@ const TxnRow = memo(function TxnRow({ t, onDelete }: { t: UnifiedTxn; onDelete?:
       )}
     </div>
   );
-}
+});
+
 
 /** Full transaction browser: search, category filter, sort and monthly groups. */
 function AllTransactionsPanel({ items, onDelete }: { items: UnifiedTxn[]; onDelete: (t: UnifiedTxn) => void }) {
