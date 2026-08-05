@@ -227,7 +227,6 @@ function Dashboard() {
   const txns: Txn[] = txnsQuery.data ?? EMPTY_TXNS;
   const upiTxns: UpiTxn[] = upiQuery.data ?? EMPTY_UPI;
 
-
   const taxRate = profile?.tax_rate ?? 27;
   const baseExpenses = Number(profile?.monthly_base_expenses ?? 2400);
 
