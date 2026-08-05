@@ -76,10 +76,7 @@ export function useAutoImport(onImported: () => void) {
   const importedRef = useRef(onImported);
   importedRef.current = onImported;
   const runningRef = useRef(false);
-  const patch = useCallback(
-    (p: Partial<AutoImportState>) => setState((s) => ({ ...s, ...p })),
-    [],
-  );
+  const patch = useCallback((p: Partial<AutoImportState>) => setState((s) => ({ ...s, ...p })), []);
 
   /** Full-inbox scan + import. Safe to call repeatedly. */
   const runFullScan = useCallback(async () => {
@@ -165,7 +162,9 @@ export function useAutoImport(onImported: () => void) {
           const { inserted } = await ingestTransactions(parsed);
           if (inserted > 0) {
             importedRef.current();
-            patch({ status: `Auto-imported ${inserted} new transaction${inserted === 1 ? "" : "s"}.` });
+            patch({
+              status: `Auto-imported ${inserted} new transaction${inserted === 1 ? "" : "s"}.`,
+            });
           }
         } catch (e) {
           ilog("db", `live SMS write failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -221,7 +220,11 @@ export function useAutoImport(onImported: () => void) {
         const [sms, notif] = await Promise.all([checkSmsPermission(), hasNotificationAccess()]);
         if (cancelled) return;
         setState((s) => {
-          if (sms && !s.smsGranted) void (async () => { await attachSms(); await runFullScan(); })();
+          if (sms && !s.smsGranted)
+            void (async () => {
+              await attachSms();
+              await runFullScan();
+            })();
           if (notif && !s.notifGranted) void attachNotifications();
           return { ...s, smsGranted: sms, notifGranted: notif };
         });
@@ -229,10 +232,20 @@ export function useAutoImport(onImported: () => void) {
     };
     window.addEventListener("focus", recheck);
     document.addEventListener("visibilitychange", recheck);
+    // Some Android builds don't fire focus/visibility when returning from the
+    // system Settings app, so poll cheaply until both permissions are on.
+    const poll = window.setInterval(() => {
+      setState((s) => {
+        if (s.smsGranted && s.notifGranted) return s;
+        recheck();
+        return s;
+      });
+    }, 4000);
 
     return () => {
       cancelled = true;
       cleanups.forEach((fn) => fn());
+      window.clearInterval(poll);
       window.removeEventListener("focus", recheck);
       document.removeEventListener("visibilitychange", recheck);
     };
