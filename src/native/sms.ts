@@ -1,60 +1,58 @@
 /**
- * SMS integration point for automatic UPI/bank transaction import.
+ * SMS bridge for automatic UPI/bank transaction import (Android).
  *
- * The web build has no way to read SMS — browsers block it. On Android
- * the app uses the `capacitor-sms-inbox` plugin, which is registered
- * in `capacitor.config.ts` and requires READ_SMS + RECEIVE_SMS in
- * `android/app/src/main/AndroidManifest.xml`.
- *
- * These helpers wrap the plugin so app code never touches
- * `Capacitor.Plugins.SmsInbox` directly.
+ * Backed by the project's own native plugin (`android-native/.../sms/`),
+ * registered under the name `SmsInbox`. The web build has no SMS access, so
+ * every helper no-ops in the browser.
  */
-import { Capacitor } from "@capacitor/core";
+import { registerPlugin } from "@capacitor/core";
 import { isNative } from "./platform";
 
 export type SmsMessage = {
+  id?: number;
   address?: string;
   body?: string;
   date?: number;
 };
 
+type SmsPermissionStatus = {
+  sms: "granted" | "denied" | "prompt";
+  read?: boolean;
+  receive?: boolean;
+  granted?: boolean;
+};
+
 type SmsInboxPlugin = {
-  checkPermissions(): Promise<{ sms: "granted" | "denied" | "prompt" }>;
-  requestPermissions(): Promise<{ sms: "granted" | "denied" }>;
+  checkPermissions(): Promise<SmsPermissionStatus>;
+  requestPermissions(): Promise<SmsPermissionStatus>;
   getSmsList(opts: {
     filter: { minDate: number; maxCount: number };
   }): Promise<{ smsList: SmsMessage[] }>;
+  startWatch(): Promise<{ watching: boolean }>;
   addListener(
     event: "smsReceived",
     cb: (msg: SmsMessage) => void,
   ): Promise<{ remove: () => Promise<void> }>;
 };
 
+const SmsInbox = registerPlugin<SmsInboxPlugin>("SmsInbox");
+
 function getPlugin(): SmsInboxPlugin | null {
-  if (!isNative()) return null;
-  const plugins = (Capacitor as unknown as { Plugins?: Record<string, unknown> })
-    .Plugins;
-  return (plugins?.SmsInbox as SmsInboxPlugin | undefined) ?? null;
+  return isNative() ? SmsInbox : null;
 }
 
 export function isSmsSupported(): boolean {
   return getPlugin() !== null;
 }
 
-/** Non-prompting check: is READ_SMS already granted? */
+/** Non-prompting check against the live OS permission state. */
 export async function checkSmsPermission(): Promise<boolean> {
   const p = getPlugin();
-
-  console.log("SmsInbox plugin:", p);
-
   if (!p) return false;
-
   try {
     const current = await p.checkPermissions();
-    console.log("SMS permission result:", current);
-    return current.sms === "granted";
-  } catch (e) {
-    console.error("SMS permission error:", e);
+    return current.granted === true || current.sms === "granted";
+  } catch {
     return false;
   }
 }
@@ -62,10 +60,14 @@ export async function checkSmsPermission(): Promise<boolean> {
 export async function requestSmsPermission(): Promise<boolean> {
   const p = getPlugin();
   if (!p) return false;
-  const current = await p.checkPermissions();
-  if (current.sms === "granted") return true;
-  const res = await p.requestPermissions();
-  return res.sms === "granted";
+  try {
+    const current = await p.checkPermissions();
+    if (current.granted === true || current.sms === "granted") return true;
+    const res = await p.requestPermissions();
+    return res.granted === true || res.sms === "granted";
+  } catch {
+    return false;
+  }
 }
 
 export async function readRecentSms(days = 90, maxCount = 500): Promise<SmsMessage[]> {
@@ -77,8 +79,8 @@ export async function readRecentSms(days = 90, maxCount = 500): Promise<SmsMessa
 }
 
 /**
- * Scan the ENTIRE SMS inbox (no date cut-off). Used right after the SMS
- * permission is granted so the user's full bank/UPI history is imported.
+ * Scan the ENTIRE SMS inbox (no date cut-off) so the user's full bank/UPI
+ * history is imported the moment permission is granted.
  */
 export async function readAllSms(maxCount = 20000): Promise<SmsMessage[]> {
   const p = getPlugin();
@@ -93,6 +95,11 @@ export async function subscribeIncomingSms(
   const p = getPlugin();
   if (!p) return () => {};
   const sub = await p.addListener("smsReceived", handler);
+  try {
+    await p.startWatch();
+  } catch {
+    /* watching is manifest-driven; ignore */
+  }
   return () => {
     void sub.remove();
   };

@@ -2,13 +2,11 @@
  * Android notification-access bridge.
  *
  * Reads transaction notifications posted by payment apps (PhonePe,
- * Google Pay, Paytm, BHIM) and banking apps. Android exposes this only
- * through a `NotificationListenerService`, which the Vairagya Android
- * project registers natively (see `android-native/` + the CI patch
- * script). This module talks to that plugin when it exists and no-ops
- * everywhere else, so the web build is unaffected.
+ * Google Pay, Paytm, BHIM, Amazon Pay, WhatsApp Pay) and banking apps via
+ * the project's native `NotificationListener` plugin
+ * (`android-native/.../notifications/`). No-ops on web.
  */
-import { Capacitor } from "@capacitor/core";
+import { registerPlugin } from "@capacitor/core";
 import { isNative } from "./platform";
 
 export type NotificationPayload = {
@@ -21,12 +19,14 @@ export type NotificationPayload = {
 type ListenerPlugin = {
   checkPermission(): Promise<{ granted: boolean }>;
   requestPermission(): Promise<{ opened: boolean }>;
-  startListening?(): Promise<void>;
+  startListening(): Promise<{ listening: boolean }>;
   addListener(
     event: "notificationReceived",
     cb: (n: NotificationPayload) => void,
   ): Promise<{ remove: () => Promise<void> }>;
 };
+
+const NotificationListener = registerPlugin<ListenerPlugin>("NotificationListener");
 
 /** Payment + banking app packages we care about. */
 export const TXN_PACKAGES = [
@@ -54,9 +54,7 @@ export const TXN_PACKAGES = [
 ];
 
 function getPlugin(): ListenerPlugin | null {
-  if (!isNative()) return null;
-  const plugins = (Capacitor as unknown as { Plugins?: Record<string, unknown> }).Plugins;
-  return (plugins?.NotificationListener as ListenerPlugin | undefined) ?? null;
+  return isNative() ? NotificationListener : null;
 }
 
 export function isNotificationImportSupported(): boolean {
@@ -96,12 +94,12 @@ export async function subscribeNotifications(
 ): Promise<() => void> {
   const p = getPlugin();
   if (!p) return () => {};
-  try {
-    await p.startListening?.();
-  } catch {
-    /* listening starts implicitly on some builds */
-  }
   const sub = await p.addListener("notificationReceived", handler);
+  try {
+    await p.startListening();
+  } catch {
+    /* listening starts implicitly once access is granted */
+  }
   return () => {
     void sub.remove();
   };

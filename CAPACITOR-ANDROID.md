@@ -9,7 +9,7 @@ build a real Android APK.
 
 ```bash
 # 1. Install Capacitor + the SMS-inbox plugin
-bun add @capacitor/core @capacitor/android capacitor-sms-inbox
+bun add @capacitor/core @capacitor/android
 bun add -d @capacitor/cli
 
 # 2. Build the web bundle
@@ -31,7 +31,7 @@ Open `android/app/src/main/AndroidManifest.xml` and add inside `<manifest>`:
 <uses-permission android:name="android.permission.RECEIVE_SMS" />
 ```
 
-The `capacitor-sms-inbox` plugin registers a `BroadcastReceiver` for
+The bundled `SmsInbox` native plugin registers a `BroadcastReceiver` for
 `android.provider.Telephony.SMS_RECEIVED` automatically, so new bank/UPI SMS
 fire the `smsReceived` event that Varaigya listens for in
 `src/routes/_authenticated/app.tsx` (`attachNativeSmsListener`).
@@ -82,7 +82,7 @@ The JS side (`tryReadNativeSms`, `attachNativeSmsListener`) expects
 }
 ```
 
-`capacitor-sms-inbox` matches this. If you swap plugins, keep the shape or
+The native `SmsInbox` plugin matches this. If you swap plugins, keep the shape or
 update the two helper functions.
 
 ## Play Store note

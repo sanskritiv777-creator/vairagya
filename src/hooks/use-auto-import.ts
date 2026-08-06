@@ -14,6 +14,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
+import { App as CapacitorApp } from "@capacitor/app";
 import { parseMessages, parseTransactionText } from "@/lib/txn-parser";
 import { ingestTransactions } from "@/lib/ingest";
 import { ilog } from "@/lib/ingest-log";
@@ -231,6 +232,13 @@ export function useAutoImport(onImported: () => void) {
       })();
     };
     window.addEventListener("focus", recheck);
+    // Native lifecycle: fires reliably when returning from Android Settings.
+    let removeResume: (() => void) | null = null;
+    void CapacitorApp.addListener("appStateChange", ({ isActive }) => {
+      if (isActive) recheck();
+    }).then((sub) => {
+      removeResume = () => void sub.remove();
+    });
     document.addEventListener("visibilitychange", recheck);
     // Some Android builds don't fire focus/visibility when returning from the
     // system Settings app, so poll cheaply until both permissions are on.
@@ -246,6 +254,7 @@ export function useAutoImport(onImported: () => void) {
       cancelled = true;
       cleanups.forEach((fn) => fn());
       window.clearInterval(poll);
+      removeResume?.();
       window.removeEventListener("focus", recheck);
       document.removeEventListener("visibilitychange", recheck);
     };

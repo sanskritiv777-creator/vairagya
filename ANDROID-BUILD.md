@@ -41,7 +41,7 @@ part of the app from that point on.
 | --- | --- |
 | `capacitor.config.ts` | Capacitor app id, name, plugin configuration |
 | `src/native/platform.ts` | `isNative()`, `isAndroid()`, `platformName()` |
-| `src/native/sms.ts` | `capacitor-sms-inbox` wrapper for auto UPI import |
+| `src/native/sms.ts` | native `SmsInbox` plugin bridge for auto UPI import |
 | `src/native/notifications.ts` | Local + FCM push notifications |
 | `src/native/biometrics.ts` | Fingerprint / face unlock |
 | `src/native/background-sync.ts` | App-resume sync + WorkManager contract |
@@ -55,7 +55,6 @@ Installed Capacitor packages (see `package.json`):
   `@capacitor/splash-screen`, `@capacitor/haptics`
 - `@capacitor/local-notifications`, `@capacitor/push-notifications`
 - `@aparajita/capacitor-biometric-auth`
-- `capacitor-sms-inbox`
 
 ---
 
@@ -83,7 +82,7 @@ After `cap add android`, open
 <uses-permission android:name="android.permission.INTERNET" />
 ```
 
-The `capacitor-sms-inbox` plugin registers its own
+The bundled native `SmsInbox` plugin registers its own
 `android.provider.Telephony.SMS_RECEIVED` receiver — you don't need to add
 one manually.
 

@@ -48,7 +48,8 @@ const config: CapacitorConfig = {
       iconColor: "#8B5CF6",
     },
     SmsInbox: {
-      // capacitor-sms-inbox — see src/native/sms.ts for the runtime bridge.
+      // Native plugin in android-native/app/src/main/java/app/vairagya/sms.
+      // JS bridge: src/native/sms.ts.
     },
     BiometricAuth: {
       // @aparajita/capacitor-biometric-auth — see src/native/biometrics.ts.
