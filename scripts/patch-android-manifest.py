@@ -4,8 +4,9 @@
 1. Inject required <uses-permission> entries.
 2. Register the SMS <queries> block for Android 11+ package visibility.
 3. Copy the native Kotlin sources from android-native/ into the app module.
-4. Register the NotificationListener plugin in MainActivity.
-5. Declare the NotificationListenerService in the manifest.
+4. Register the native Capacitor plugins in MainActivity.
+5. Declare the NotificationListenerService + SMS receiver in the manifest.
+6. Enable the Kotlin Gradle plugin so the Kotlin sources compile.
 
 Runs from CI after `bunx cap sync android`. Safe to run multiple times.
 """
@@ -18,6 +19,11 @@ ANDROID = Path("android")
 MANIFEST = ANDROID / "app/src/main/AndroidManifest.xml"
 NATIVE_SRC = Path("android-native/app/src/main/java")
 NATIVE_DST = ANDROID / "app/src/main/java"
+
+PLUGIN_CLASSES = [
+    "app.vairagya.notifications.NotificationListenerPlugin",
+    "app.vairagya.sms.SmsInboxPlugin",
+]
 
 REQUIRED_PERMISSIONS = [
     "android.permission.INTERNET",
@@ -55,6 +61,17 @@ NOTIF_SERVICE_BLOCK = """
         </service>
 """
 
+SMS_RECEIVER_BLOCK = """
+        <receiver
+            android:name="app.vairagya.sms.SmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+"""
+
 
 def patch_manifest() -> None:
     xml = MANIFEST.read_text()
@@ -84,6 +101,9 @@ def patch_manifest() -> None:
     if "VairagyaNotificationService" not in xml:
         xml = xml.replace("</application>", NOTIF_SERVICE_BLOCK + "\n    </application>", 1)
 
+    if "app.vairagya.sms.SmsReceiver" not in xml:
+        xml = xml.replace("</application>", SMS_RECEIVER_BLOCK + "\n    </application>", 1)
+
     MANIFEST.write_text(xml)
     print(f"[patch-manifest] Updated {MANIFEST}")
 
@@ -100,38 +120,66 @@ def copy_native_sources() -> None:
         print(f"[patch-manifest] copied {rel}")
 
 
-def register_plugin() -> None:
+def register_plugins() -> None:
     candidates = list((ANDROID / "app/src/main/java").rglob("MainActivity.*"))
     if not candidates:
         print("[patch-manifest] MainActivity not found; skipping plugin registration")
         return
     for main in candidates:
         text = main.read_text()
-        if "NotificationListenerPlugin" in text:
-            print(f"[patch-manifest] plugin already registered in {main.name}")
-            continue
         if main.suffix == ".java":
+            calls = "\n".join(
+                f"        registerPlugin({cls}.class);" for cls in PLUGIN_CLASSES
+            )
+            body = (
+                "\n    @Override\n"
+                "    public void onCreate(android.os.Bundle savedInstanceState) {\n"
+                f"{calls}\n"
+                "        super.onCreate(savedInstanceState);\n"
+                "    }\n"
+            )
+            if "registerPlugin(" in text:
+                # Refresh an older single-plugin registration.
+                text = re.sub(
+                    r"\n\s*@Override\s*\n\s*public void onCreate\(android\.os\.Bundle savedInstanceState\) \{.*?\n    \}\n",
+                    body,
+                    text,
+                    count=1,
+                    flags=re.DOTALL,
+                )
+                main.write_text(text)
+                print(f"[patch-manifest] refreshed registrations in {main.name}")
+                continue
             new_text, n = re.subn(
                 r"(public class MainActivity extends BridgeActivity \{)",
-                r"""\1
-    @Override
-    public void onCreate(android.os.Bundle savedInstanceState) {
-        registerPlugin(app.vairagya.notifications.NotificationListenerPlugin.class);
-        super.onCreate(savedInstanceState);
-    }
-""",
+                lambda m: m.group(1) + body,
                 text,
                 count=1,
             )
         else:
+            calls = "\n".join(
+                f"        registerPlugin({cls}::class.java)" for cls in PLUGIN_CLASSES
+            )
+            body = (
+                "\n    override fun onCreate(savedInstanceState: android.os.Bundle?) {\n"
+                f"{calls}\n"
+                "        super.onCreate(savedInstanceState)\n"
+                "    }\n"
+            )
+            if "registerPlugin(" in text:
+                text = re.sub(
+                    r"\n\s*override fun onCreate\(savedInstanceState: android\.os\.Bundle\?\) \{.*?\n    \}\n",
+                    body,
+                    text,
+                    count=1,
+                    flags=re.DOTALL,
+                )
+                main.write_text(text)
+                print(f"[patch-manifest] refreshed registrations in {main.name}")
+                continue
             new_text, n = re.subn(
                 r"(class MainActivity\s*:\s*BridgeActivity\(\)\s*\{)",
-                r"""\1
-    override fun onCreate(savedInstanceState: android.os.Bundle?) {
-        registerPlugin(app.vairagya.notifications.NotificationListenerPlugin::class.java)
-        super.onCreate(savedInstanceState)
-    }
-""",
+                lambda m: m.group(1) + body,
                 text,
                 count=1,
             )
@@ -139,21 +187,17 @@ def register_plugin() -> None:
                 # Bare `class MainActivity : BridgeActivity()` with no body.
                 new_text, n = re.subn(
                     r"(class MainActivity\s*:\s*BridgeActivity\(\))\s*$",
-                    r"""\1 {
-    override fun onCreate(savedInstanceState: android.os.Bundle?) {
-        registerPlugin(app.vairagya.notifications.NotificationListenerPlugin::class.java)
-        super.onCreate(savedInstanceState)
-    }
-}""",
+                    lambda m: m.group(1) + " {" + body + "}",
                     text,
                     count=1,
                     flags=re.MULTILINE,
                 )
         if n:
             main.write_text(new_text)
-            print(f"[patch-manifest] registered plugin in {main.name}")
+            print(f"[patch-manifest] registered plugins in {main.name}")
         else:
             print(f"[patch-manifest] could not patch {main.name}; left unchanged")
+
 
 def patch_build_gradle() -> None:
     build = ANDROID / "app/build.gradle"
@@ -166,11 +210,21 @@ def patch_build_gradle() -> None:
     if "org.jetbrains.kotlin.android" not in text:
         text = text.replace(
             "apply plugin: 'com.android.application'",
-            "apply plugin: 'com.android.application'\napply plugin: 'org.jetbrains.kotlin.android'"
+            "apply plugin: 'com.android.application'\napply plugin: 'org.jetbrains.kotlin.android'",
         )
         print("[patch-manifest] enabled Kotlin Android plugin")
 
+    if "androidx.core:core-ktx" not in text:
+        text = re.sub(
+            r"(dependencies \{)",
+            r"\1\n    implementation 'androidx.core:core-ktx:1.13.1'",
+            text,
+            count=1,
+        )
+        print("[patch-manifest] added androidx.core:core-ktx dependency")
+
     build.write_text(text)
+
 
 def patch_root_build_gradle() -> None:
     build = ANDROID / "build.gradle"
@@ -181,10 +235,18 @@ def patch_root_build_gradle() -> None:
     text = build.read_text()
 
     if "kotlin-gradle-plugin" not in text:
-        text = text.replace(
-            "classpath 'com.google.gms:google-services:4.4.4'",
-            "classpath 'com.google.gms:google-services:4.4.4'\n        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.21'"
+        text = re.sub(
+            r"(classpath ['\"]com\.android\.tools\.build:gradle[^\n]*\n)",
+            r"\1        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.21'\n",
+            text,
+            count=1,
         )
+        if "kotlin-gradle-plugin" not in text:
+            text = text.replace(
+                "dependencies {",
+                "dependencies {\n        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.1.21'",
+                1,
+            )
         print("[patch-manifest] added Kotlin Gradle plugin")
 
     build.write_text(text)
@@ -198,7 +260,7 @@ def main() -> int:
     copy_native_sources()
     patch_build_gradle()
     patch_root_build_gradle()
-    register_plugin()
+    register_plugins()
     return 0
 
 
