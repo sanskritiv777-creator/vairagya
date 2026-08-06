@@ -24,14 +24,39 @@ class NotificationListenerPlugin : Plugin() {
         @Volatile
         private var instance: NotificationListenerPlugin? = null
 
+        /** Notifications posted before the JS layer attached. */
+        private val pending = ArrayList<JSObject>()
+
         /** Called from VairagyaNotificationService for every posted notification. */
         fun emit(payload: JSObject) {
-            instance?.notifyListeners("notificationReceived", payload)
+            val plugin = instance
+            if (plugin != null) {
+                plugin.notifyListeners("notificationReceived", payload, true)
+            } else {
+                synchronized(pending) {
+                    if (pending.size > 200) pending.removeAt(0)
+                    pending.add(payload)
+                }
+            }
+        }
+
+        private fun drain(plugin: NotificationListenerPlugin) {
+            val queued: List<JSObject>
+            synchronized(pending) {
+                queued = ArrayList(pending)
+                pending.clear()
+            }
+            queued.forEach { plugin.notifyListeners("notificationReceived", it, true) }
         }
     }
 
     override fun load() {
         instance = this
+        drain(this)
+    }
+
+    override fun handleOnResume() {
+        drain(this)
     }
 
     override fun handleOnDestroy() {
@@ -75,6 +100,7 @@ class NotificationListenerPlugin : Plugin() {
 
     @PluginMethod
     fun startListening(call: PluginCall) {
+        drain(this)
         // The service is started by the OS once access is granted; this
         // method exists so JS can confirm the bridge is alive.
         val res = JSObject()
