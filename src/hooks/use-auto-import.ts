@@ -275,7 +275,11 @@ export function useAutoImport(onImported: () => void) {
         }
       })();
     };
-    window.addEventListener("focus", () => recheck(true));
+    const onFocus = () => recheck(true);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") recheck(true);
+    };
+    window.addEventListener("focus", onFocus);
     // Native lifecycle: fires reliably when returning from Android Settings.
     let removeResume: (() => void) | null = null;
     void CapacitorApp.addListener("appStateChange", ({ isActive }) => {
@@ -283,7 +287,7 @@ export function useAutoImport(onImported: () => void) {
     }).then((sub) => {
       removeResume = () => void sub.remove();
     });
-    document.addEventListener("visibilitychange", recheck);
+    document.addEventListener("visibilitychange", onVisible);
     // Some Android builds don't fire focus/visibility when returning from the
     // system Settings app, so poll cheaply until both permissions are on.
     const poll = window.setInterval(() => {
@@ -299,8 +303,8 @@ export function useAutoImport(onImported: () => void) {
       cleanups.forEach((fn) => fn());
       window.clearInterval(poll);
       removeResume?.();
-      window.removeEventListener("focus", recheck);
-      document.removeEventListener("visibilitychange", recheck);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [native]);
