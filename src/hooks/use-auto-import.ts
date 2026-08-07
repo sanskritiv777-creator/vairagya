@@ -22,6 +22,7 @@ import {
   checkSmsPermission,
   requestSmsPermission,
   readAllSms,
+  readRecentSms,
   subscribeIncomingSms,
 } from "@/native/sms";
 import {
