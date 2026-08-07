@@ -64,7 +64,13 @@ class SmsInboxPlugin : Plugin() {
                 queued = ArrayList(pending)
                 pending.clear()
             }
-            queued.forEach { plugin.notifyListeners("smsReceived", it, true) }
+            // Messages persisted by SmsReceiver while no process/JS was alive.
+            val persisted = try {
+                SmsQueue.drain(plugin.context)
+            } catch (e: Exception) {
+                emptyList()
+            }
+            (queued + persisted).forEach { plugin.notifyListeners("smsReceived", it, true) }
         }
     }
 
