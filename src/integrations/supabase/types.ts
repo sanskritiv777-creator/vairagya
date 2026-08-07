@@ -82,7 +82,7 @@ export type Database = {
           category: Database["public"]["Enums"]["upi_category"]
           counterparty: string
           created_at: string
-          dedupe_key: string | null
+          dedupe_key: string
           direction: string
           id: string
           note: string | null
@@ -99,7 +99,7 @@ export type Database = {
           category?: Database["public"]["Enums"]["upi_category"]
           counterparty: string
           created_at?: string
-          dedupe_key?: string | null
+          dedupe_key: string
           direction: string
           id?: string
           note?: string | null
@@ -116,7 +116,7 @@ export type Database = {
           category?: Database["public"]["Enums"]["upi_category"]
           counterparty?: string
           created_at?: string
-          dedupe_key?: string | null
+          dedupe_key?: string
           direction?: string
           id?: string
           note?: string | null
