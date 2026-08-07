@@ -119,6 +119,39 @@ export function useAutoImport(onImported: () => void) {
     }
   }, [patch]);
 
+  /**
+   * Short catch-up scan (recent messages only) run on every app resume.
+   *
+   * A live `smsReceived` event can be missed entirely — e.g. the app process
+   * was killed, the OS delayed the broadcast, or the JS layer wasn't attached.
+   * Re-reading the last few days on resume guarantees any transaction that
+   * landed while the app was closed still shows up. DB dedupe makes it free.
+   */
+  const runCatchUpScan = useCallback(async () => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    try {
+      const messages = await readRecentSms(7, 500);
+      ilog("sms", `resume catch-up: read ${messages.length} recent SMS`);
+      const { parsed } = parseMessages(messages, "sms");
+      if (!parsed.length) return;
+      const { inserted } = await ingestTransactions(parsed);
+      ilog("sms", `resume catch-up: imported ${inserted} new transaction(s)`);
+      if (inserted > 0) {
+        importedRef.current();
+        patch({
+          status: `Imported ${inserted} new transaction${inserted === 1 ? "" : "s"} received while you were away.`,
+        });
+      }
+    } catch (e) {
+      ilog("sms", `resume catch-up failed: ${describeDbError(e)}`);
+    } finally {
+      runningRef.current = false;
+    }
+  }, [patch]);
+
+
+
   /** Ask for SMS permission, then import immediately when granted. */
   const enableSms = useCallback(async () => {
     if (!native) return false;
