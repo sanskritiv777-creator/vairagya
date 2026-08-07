@@ -250,26 +250,36 @@ export function useAutoImport(onImported: () => void) {
     })();
 
     // Re-check after the user comes back from Android Settings.
-    const recheck = () => {
+    let lastCatchUp = 0;
+    const recheck = (catchUp = false) => {
       void (async () => {
         const [sms, notif] = await Promise.all([checkSmsPermission(), hasNotificationAccess()]);
         if (cancelled) return;
+        let fresh = false;
         setState((s) => {
-          if (sms && !s.smsGranted)
+          if (sms && !s.smsGranted) {
+            fresh = true;
             void (async () => {
               await attachSms();
               await runFullScan();
             })();
+          }
           if (notif && !s.notifGranted) void attachNotifications();
           return { ...s, smsGranted: sms, notifGranted: notif };
         });
+        // Already-granted resume: sweep recent SMS for anything the live
+        // listener missed while the app was closed. Throttled.
+        if (catchUp && sms && !fresh && Date.now() - lastCatchUp > 15000) {
+          lastCatchUp = Date.now();
+          await runCatchUpScan();
+        }
       })();
     };
-    window.addEventListener("focus", recheck);
+    window.addEventListener("focus", () => recheck(true));
     // Native lifecycle: fires reliably when returning from Android Settings.
     let removeResume: (() => void) | null = null;
     void CapacitorApp.addListener("appStateChange", ({ isActive }) => {
-      if (isActive) recheck();
+      if (isActive) recheck(true);
     }).then((sub) => {
       removeResume = () => void sub.remove();
     });
