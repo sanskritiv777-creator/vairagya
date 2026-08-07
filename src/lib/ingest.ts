@@ -29,7 +29,7 @@ type UpiRow = {
   source: string;
   dedupe_key: string;
   note: string | null;
-  category: string;
+  category: "other";
   occurred_at: string;
 };
 
@@ -80,7 +80,7 @@ export async function ingestTransactions(parsed: ParsedTxn[]): Promise<IngestRes
     source: p.source,
     dedupe_key: p.dedupe_key,
     note: p.raw ?? null,
-    category: "other",
+    category: "other" as const,
     occurred_at: p.occurred_at,
   }));
 
