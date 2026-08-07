@@ -16,7 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { parseMessages, parseTransactionText } from "@/lib/txn-parser";
-import { ingestTransactions } from "@/lib/ingest";
+import { ingestTransactions, describeDbError } from "@/lib/ingest";
 import { ilog } from "@/lib/ingest-log";
 import {
   checkSmsPermission,
@@ -110,7 +110,7 @@ export function useAutoImport(onImported: () => void) {
             : "You're up to date. New SMS sync automatically.",
       });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = describeDbError(e);
       ilog("sms", `import failed: ${msg}`);
       patch({ phase: "error", busy: false, status: `Import failed: ${msg}` });
     } finally {
@@ -168,7 +168,7 @@ export function useAutoImport(onImported: () => void) {
             });
           }
         } catch (e) {
-          ilog("db", `live SMS write failed: ${e instanceof Error ? e.message : String(e)}`);
+          ilog("db", `live SMS write failed: ${describeDbError(e)}`);
         }
       });
       cleanups.push(stop);
@@ -193,7 +193,7 @@ export function useAutoImport(onImported: () => void) {
             patch({ status: `Auto-imported ${inserted} transaction from a payment notification.` });
           }
         } catch (e) {
-          ilog("db", `notification write failed: ${e instanceof Error ? e.message : String(e)}`);
+          ilog("db", `notification write failed: ${describeDbError(e)}`);
         }
       });
       cleanups.push(stop);
