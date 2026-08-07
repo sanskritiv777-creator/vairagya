@@ -41,6 +41,9 @@ class SmsReceiver : BroadcastReceiver() {
         payload.put("address", address)
         payload.put("body", body)
         payload.put("date", timestamp)
+        // Always persist first: if this broadcast started a short-lived process
+        // (app closed), the in-memory buffer dies with it.
+        context?.let { SmsQueue.push(it, payload) }
         SmsInboxPlugin.emit(payload)
     }
 }

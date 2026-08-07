@@ -22,6 +22,7 @@ import {
   checkSmsPermission,
   requestSmsPermission,
   readAllSms,
+  readRecentSms,
   subscribeIncomingSms,
 } from "@/native/sms";
 import {
@@ -117,6 +118,39 @@ export function useAutoImport(onImported: () => void) {
       runningRef.current = false;
     }
   }, [patch]);
+
+  /**
+   * Short catch-up scan (recent messages only) run on every app resume.
+   *
+   * A live `smsReceived` event can be missed entirely — e.g. the app process
+   * was killed, the OS delayed the broadcast, or the JS layer wasn't attached.
+   * Re-reading the last few days on resume guarantees any transaction that
+   * landed while the app was closed still shows up. DB dedupe makes it free.
+   */
+  const runCatchUpScan = useCallback(async () => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    try {
+      const messages = await readRecentSms(7, 500);
+      ilog("sms", `resume catch-up: read ${messages.length} recent SMS`);
+      const { parsed } = parseMessages(messages, "sms");
+      if (!parsed.length) return;
+      const { inserted } = await ingestTransactions(parsed);
+      ilog("sms", `resume catch-up: imported ${inserted} new transaction(s)`);
+      if (inserted > 0) {
+        importedRef.current();
+        patch({
+          status: `Imported ${inserted} new transaction${inserted === 1 ? "" : "s"} received while you were away.`,
+        });
+      }
+    } catch (e) {
+      ilog("sms", `resume catch-up failed: ${describeDbError(e)}`);
+    } finally {
+      runningRef.current = false;
+    }
+  }, [patch]);
+
+
 
   /** Ask for SMS permission, then import immediately when granted. */
   const enableSms = useCallback(async () => {
@@ -216,30 +250,44 @@ export function useAutoImport(onImported: () => void) {
     })();
 
     // Re-check after the user comes back from Android Settings.
-    const recheck = () => {
+    let lastCatchUp = 0;
+    const recheck = (catchUp = false) => {
       void (async () => {
         const [sms, notif] = await Promise.all([checkSmsPermission(), hasNotificationAccess()]);
         if (cancelled) return;
+        let fresh = false;
         setState((s) => {
-          if (sms && !s.smsGranted)
+          if (sms && !s.smsGranted) {
+            fresh = true;
             void (async () => {
               await attachSms();
               await runFullScan();
             })();
+          }
           if (notif && !s.notifGranted) void attachNotifications();
           return { ...s, smsGranted: sms, notifGranted: notif };
         });
+        // Already-granted resume: sweep recent SMS for anything the live
+        // listener missed while the app was closed. Throttled.
+        if (catchUp && sms && !fresh && Date.now() - lastCatchUp > 15000) {
+          lastCatchUp = Date.now();
+          await runCatchUpScan();
+        }
       })();
     };
-    window.addEventListener("focus", recheck);
+    const onFocus = () => recheck(true);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") recheck(true);
+    };
+    window.addEventListener("focus", onFocus);
     // Native lifecycle: fires reliably when returning from Android Settings.
     let removeResume: (() => void) | null = null;
     void CapacitorApp.addListener("appStateChange", ({ isActive }) => {
-      if (isActive) recheck();
+      if (isActive) recheck(true);
     }).then((sub) => {
       removeResume = () => void sub.remove();
     });
-    document.addEventListener("visibilitychange", recheck);
+    document.addEventListener("visibilitychange", onVisible);
     // Some Android builds don't fire focus/visibility when returning from the
     // system Settings app, so poll cheaply until both permissions are on.
     const poll = window.setInterval(() => {
@@ -255,8 +303,8 @@ export function useAutoImport(onImported: () => void) {
       cleanups.forEach((fn) => fn());
       window.clearInterval(poll);
       removeResume?.();
-      window.removeEventListener("focus", recheck);
-      document.removeEventListener("visibilitychange", recheck);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [native]);
