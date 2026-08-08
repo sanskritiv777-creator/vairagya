@@ -29,6 +29,7 @@ type SmsInboxPlugin = {
     filter: { minDate: number; maxCount: number };
   }): Promise<{ smsList: SmsMessage[] }>;
   startWatch(): Promise<{ watching: boolean }>;
+  getPendingSms(): Promise<{ messages: SmsMessage[] }>;
   addListener(
     event: "smsReceived",
     cb: (msg: SmsMessage) => void,
@@ -36,6 +37,7 @@ type SmsInboxPlugin = {
 };
 
 const SmsInbox = registerPlugin<SmsInboxPlugin>("SmsInbox");
+
 
 function getPlugin(): SmsInboxPlugin | null {
   return isNative() ? SmsInbox : null;
