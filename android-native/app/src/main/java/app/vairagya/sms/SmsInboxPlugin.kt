@@ -173,12 +173,32 @@ class SmsInboxPlugin : Plugin() {
         call.resolve(res)
     }
 
-    /** JS calls this to confirm the bridge is alive and flush buffered SMS. */
+    /** JS calls this to confirm the bridge is alive. */
     @PluginMethod
     fun startWatch(call: PluginCall) {
-        drain(this)
         val res = JSObject()
         res.put("watching", receiveGranted())
+        Log.d(TAG, "startWatch -> watching=${receiveGranted()}")
+        call.resolve(res)
+    }
+
+    /**
+     * Pulls (and clears) every SMS persisted by [SmsReceiver] while the JS
+     * layer was unavailable. This — not the in-memory instance — is the
+     * reliable live-SMS delivery path.
+     */
+    @PluginMethod
+    fun getPendingSms(call: PluginCall) {
+        val list = JSArray()
+        try {
+            SmsQueue.drain(context).forEach { list.put(it) }
+        } catch (e: Exception) {
+            Log.e(TAG, "getPendingSms failed: ${e.message}")
+        }
+        Log.d(TAG, "getPendingSms -> ${list.length()} message(s)")
+        val res = JSObject()
+        res.put("messages", list)
         call.resolve(res)
     }
 }
+
