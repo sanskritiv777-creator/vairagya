@@ -24,7 +24,9 @@ import {
   readAllSms,
   readRecentSms,
   subscribeIncomingSms,
+  drainPendingSms,
 } from "@/native/sms";
+
 import {
   hasNotificationAccess,
   requestNotificationAccess,
