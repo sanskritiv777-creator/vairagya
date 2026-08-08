@@ -345,6 +345,8 @@ export function useAutoImport(onImported: () => void) {
       cancelled = true;
       cleanups.forEach((fn) => fn());
       window.clearInterval(poll);
+      window.clearInterval(queuePoll);
+
       removeResume?.();
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
