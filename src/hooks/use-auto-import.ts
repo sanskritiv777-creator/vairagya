@@ -298,15 +298,20 @@ export function useAutoImport(onImported: () => void) {
           if (notif && !s.notifGranted) void attachNotifications();
           return { ...s, smsGranted: sms, notifGranted: notif };
         });
-        // Already-granted resume: sweep recent SMS for anything the live
-        // listener missed while the app was closed. Throttled.
-        if (catchUp && sms && !fresh && Date.now() - lastCatchUp > 15000) {
-          lastCatchUp = Date.now();
-          await runCatchUpScan();
+        if (sms && !fresh) {
+          // Always drain the native queue first — it holds the exact SMS the
+          // receiver captured while JS was unavailable, and it is cheap.
+          await drainNativeQueue();
+          // Then sweep recent inbox messages as a safety net. Throttled.
+          if (catchUp && Date.now() - lastCatchUp > 15000) {
+            lastCatchUp = Date.now();
+            await runCatchUpScan();
+          }
         }
       })();
     };
     const onFocus = () => recheck(true);
+
     const onVisible = () => {
       if (document.visibilityState === "visible") recheck(true);
     };
