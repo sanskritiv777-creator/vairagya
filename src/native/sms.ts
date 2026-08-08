@@ -29,6 +29,7 @@ type SmsInboxPlugin = {
     filter: { minDate: number; maxCount: number };
   }): Promise<{ smsList: SmsMessage[] }>;
   startWatch(): Promise<{ watching: boolean }>;
+  getPendingSms(): Promise<{ messages: SmsMessage[] }>;
   addListener(
     event: "smsReceived",
     cb: (msg: SmsMessage) => void,
@@ -36,6 +37,7 @@ type SmsInboxPlugin = {
 };
 
 const SmsInbox = registerPlugin<SmsInboxPlugin>("SmsInbox");
+
 
 function getPlugin(): SmsInboxPlugin | null {
   return isNative() ? SmsInbox : null;
@@ -87,6 +89,22 @@ export async function readAllSms(maxCount = 20000): Promise<SmsMessage[]> {
   if (!p) return [];
   const { smsList } = await p.getSmsList({ filter: { minDate: 0, maxCount } });
   return smsList ?? [];
+}
+
+/**
+ * Pulls (and clears) SMS the native receiver persisted while the JS layer was
+ * not attached — the reliable live-SMS delivery path when the app process was
+ * dead or backgrounded when the message arrived.
+ */
+export async function drainPendingSms(): Promise<SmsMessage[]> {
+  const p = getPlugin();
+  if (!p || typeof p.getPendingSms !== "function") return [];
+  try {
+    const { messages } = await p.getPendingSms();
+    return messages ?? [];
+  } catch {
+    return [];
+  }
 }
 
 export async function subscribeIncomingSms(

@@ -24,7 +24,9 @@ import {
   readAllSms,
   readRecentSms,
   subscribeIncomingSms,
+  drainPendingSms,
 } from "@/native/sms";
+
 import {
   hasNotificationAccess,
   requestNotificationAccess,
@@ -150,6 +152,32 @@ export function useAutoImport(onImported: () => void) {
     }
   }, [patch]);
 
+  /**
+   * Drains the native SMS queue — messages the manifest receiver persisted
+   * while no JS listener existed (app closed / process killed / bridge not yet
+   * up). This is the authoritative live-SMS path; the `smsReceived` event is
+   * only an optimisation for when the app is already in the foreground.
+   */
+  const drainNativeQueue = useCallback(async () => {
+    try {
+      const queued = await drainPendingSms();
+      if (!queued.length) return;
+      ilog("sms", `native queue: drained ${queued.length} live SMS`);
+      const { parsed, failed } = parseMessages(queued, "sms");
+      ilog("parse", `native queue: ${parsed.length} transaction(s), ${failed} non-transaction`);
+      if (!parsed.length) return;
+      const { inserted, skipped } = await ingestTransactions(parsed);
+      ilog("db", `native queue: saved ${inserted}, skipped ${skipped} duplicate(s)`);
+      if (inserted > 0) {
+        importedRef.current();
+        patch({
+          status: `Auto-imported ${inserted} new transaction${inserted === 1 ? "" : "s"}.`,
+        });
+      }
+    } catch (e) {
+      ilog("sms", `native queue drain failed: ${describeDbError(e)}`);
+    }
+  }, [patch]);
 
 
   /** Ask for SMS permission, then import immediately when granted. */
@@ -207,7 +235,10 @@ export function useAutoImport(onImported: () => void) {
       });
       cleanups.push(stop);
       ilog("sms", "live SMS listener attached");
+      // Anything the receiver persisted before this listener existed.
+      await drainNativeQueue();
     }
+
 
     async function attachNotifications() {
       const stop = await subscribeNotifications(async (n) => {
@@ -267,15 +298,20 @@ export function useAutoImport(onImported: () => void) {
           if (notif && !s.notifGranted) void attachNotifications();
           return { ...s, smsGranted: sms, notifGranted: notif };
         });
-        // Already-granted resume: sweep recent SMS for anything the live
-        // listener missed while the app was closed. Throttled.
-        if (catchUp && sms && !fresh && Date.now() - lastCatchUp > 15000) {
-          lastCatchUp = Date.now();
-          await runCatchUpScan();
+        if (sms && !fresh) {
+          // Always drain the native queue first — it holds the exact SMS the
+          // receiver captured while JS was unavailable, and it is cheap.
+          await drainNativeQueue();
+          // Then sweep recent inbox messages as a safety net. Throttled.
+          if (catchUp && Date.now() - lastCatchUp > 15000) {
+            lastCatchUp = Date.now();
+            await runCatchUpScan();
+          }
         }
       })();
     };
     const onFocus = () => recheck(true);
+
     const onVisible = () => {
       if (document.visibilityState === "visible") recheck(true);
     };
@@ -297,11 +333,20 @@ export function useAutoImport(onImported: () => void) {
         return s;
       });
     }, 4000);
+    // Foreground safety net: the receiver always persists, so polling the queue
+    // imports live SMS even if the Capacitor event never reaches JS.
+    const queuePoll = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void drainNativeQueue();
+    }, 10000);
+
 
     return () => {
       cancelled = true;
       cleanups.forEach((fn) => fn());
       window.clearInterval(poll);
+      window.clearInterval(queuePoll);
+
       removeResume?.();
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
