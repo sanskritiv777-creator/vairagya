@@ -333,6 +333,13 @@ export function useAutoImport(onImported: () => void) {
         return s;
       });
     }, 4000);
+    // Foreground safety net: the receiver always persists, so polling the queue
+    // imports live SMS even if the Capacitor event never reaches JS.
+    const queuePoll = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      void drainNativeQueue();
+    }, 10000);
+
 
     return () => {
       cancelled = true;
