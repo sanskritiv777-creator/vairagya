@@ -91,6 +91,22 @@ export async function readAllSms(maxCount = 20000): Promise<SmsMessage[]> {
   return smsList ?? [];
 }
 
+/**
+ * Pulls (and clears) SMS the native receiver persisted while the JS layer was
+ * not attached — the reliable live-SMS delivery path when the app process was
+ * dead or backgrounded when the message arrived.
+ */
+export async function drainPendingSms(): Promise<SmsMessage[]> {
+  const p = getPlugin();
+  if (!p || typeof p.getPendingSms !== "function") return [];
+  try {
+    const { messages } = await p.getPendingSms();
+    return messages ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function subscribeIncomingSms(
   handler: (msg: SmsMessage) => void,
 ): Promise<() => void> {
