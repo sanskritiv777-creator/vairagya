@@ -152,6 +152,32 @@ export function useAutoImport(onImported: () => void) {
     }
   }, [patch]);
 
+  /**
+   * Drains the native SMS queue — messages the manifest receiver persisted
+   * while no JS listener existed (app closed / process killed / bridge not yet
+   * up). This is the authoritative live-SMS path; the `smsReceived` event is
+   * only an optimisation for when the app is already in the foreground.
+   */
+  const drainNativeQueue = useCallback(async () => {
+    try {
+      const queued = await drainPendingSms();
+      if (!queued.length) return;
+      ilog("sms", `native queue: drained ${queued.length} live SMS`);
+      const { parsed, failed } = parseMessages(queued, "sms");
+      ilog("parse", `native queue: ${parsed.length} transaction(s), ${failed} non-transaction`);
+      if (!parsed.length) return;
+      const { inserted, skipped } = await ingestTransactions(parsed);
+      ilog("db", `native queue: saved ${inserted}, skipped ${skipped} duplicate(s)`);
+      if (inserted > 0) {
+        importedRef.current();
+        patch({
+          status: `Auto-imported ${inserted} new transaction${inserted === 1 ? "" : "s"}.`,
+        });
+      }
+    } catch (e) {
+      ilog("sms", `native queue drain failed: ${describeDbError(e)}`);
+    }
+  }, [patch]);
 
 
   /** Ask for SMS permission, then import immediately when granted. */
