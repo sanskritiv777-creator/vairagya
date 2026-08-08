@@ -38,54 +38,40 @@ class SmsInboxPlugin : Plugin() {
 
     companion object {
         const val ALIAS_SMS = "sms"
+        private const val TAG = "VairagyaSms"
 
         @Volatile
         private var instance: SmsInboxPlugin? = null
-
-        /** Messages received while the JS layer was not yet attached. */
-        private val pending = ArrayList<JSObject>()
 
         /** Called from [SmsReceiver] for every incoming SMS. */
         fun emit(payload: JSObject) {
             val plugin = instance
             if (plugin != null) {
+                Log.d(TAG, "emit -> notifyListeners(smsReceived) live")
                 plugin.notifyListeners("smsReceived", payload, true)
             } else {
-                synchronized(pending) {
-                    if (pending.size > 200) pending.removeAt(0)
-                    pending.add(payload)
-                }
+                // No bridge in this process: the persisted SmsQueue is the
+                // source of truth and JS drains it via getPendingSms().
+                Log.d(TAG, "emit -> no plugin instance, left in SmsQueue")
             }
-        }
-
-        private fun drain(plugin: SmsInboxPlugin) {
-            val queued: List<JSObject>
-            synchronized(pending) {
-                queued = ArrayList(pending)
-                pending.clear()
-            }
-            // Messages persisted by SmsReceiver while no process/JS was alive.
-            val persisted = try {
-                SmsQueue.drain(plugin.context)
-            } catch (e: Exception) {
-                emptyList()
-            }
-            (queued + persisted).forEach { plugin.notifyListeners("smsReceived", it, true) }
         }
     }
 
     override fun load() {
         instance = this
-        drain(this)
+        Log.d(TAG, "plugin loaded")
     }
 
     override fun handleOnResume() {
-        drain(this)
+        // Deliberately NOT draining here: a drain before the JS listener is
+        // attached would discard the message permanently. JS pulls instead.
+        Log.d(TAG, "handleOnResume")
     }
 
     override fun handleOnDestroy() {
         if (instance === this) instance = null
     }
+
 
     private fun readGranted(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
