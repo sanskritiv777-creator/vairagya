@@ -235,7 +235,10 @@ export function useAutoImport(onImported: () => void) {
       });
       cleanups.push(stop);
       ilog("sms", "live SMS listener attached");
+      // Anything the receiver persisted before this listener existed.
+      await drainNativeQueue();
     }
+
 
     async function attachNotifications() {
       const stop = await subscribeNotifications(async (n) => {
