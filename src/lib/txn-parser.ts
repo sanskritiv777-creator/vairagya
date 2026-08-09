@@ -98,10 +98,9 @@ export function parseTransactionText(
   const amtMatch =
     body.match(/(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d+)?)/i) ||
     body.match(
-     /\b(?:debited|credited|received|paid|sent|spent|
-   deposited)\s+(?:by|with|of)\s*(?:Rs\.?|INR|₹)?\s*([\d,]+
-   (?:\.\d+)?)/i,
-    );
+      /\b(?:debited|credited|received|paid|sent|spent|deposited)\s+(?:by|with|of)\s*(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d+)?)/i,
+   );
+  
   const amount = amtMatch ? parseFloat(amtMatch[1].replace(/,/g, "")) : NaN;
   if (!isFinite(amount) || amount <= 0) return null;
 
