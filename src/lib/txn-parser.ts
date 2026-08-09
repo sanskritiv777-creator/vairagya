@@ -95,7 +95,13 @@ export function parseTransactionText(
   if (NOISE_RE.test(body)) return null;
   if (!TXN_HINT.test(body)) return null;
 
-  const amtMatch = body.match(/(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d+)?)/i);
+  const const amtMatch =
+    body.match(/(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d+)?)/i) ||
+    body.match(
+     /\b(?:debited|credited|received|paid|sent|spent|
+   deposited)\s+(?:by|with|of)\s*(?:Rs\.?|INR|₹)?\s*([\d,]+
+   (?:\.\d+)?)/i,
+    );
   const amount = amtMatch ? parseFloat(amtMatch[1].replace(/,/g, "")) : NaN;
   if (!isFinite(amount) || amount <= 0) return null;
 
