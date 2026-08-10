@@ -94,7 +94,15 @@ export async function subscribeNotifications(
 ): Promise<() => void> {
   const p = getPlugin();
   if (!p) return () => {};
-  const sub = await p.addListener("notificationReceived", handler);
+
+  const sub = await p.addListener("notificationReceived", (n) => {
+    console.log(
+      "[VairagyaNotif] JS RECEIVED:",
+      JSON.stringify(n)
+    );
+
+    handler(n);
+  });
   try {
     await p.startListening();
   } catch {
