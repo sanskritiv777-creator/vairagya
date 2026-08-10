@@ -31,8 +31,16 @@ class NotificationListenerPlugin : Plugin() {
         fun emit(payload: JSObject) {
             val plugin = instance
             if (plugin != null) {
-                plugin.notifyListeners("notificationReceived", payload, true)
-            } else {
+    android.util.Log.d(
+        "VairagyaNotif",
+        "BRIDGE EMIT: ${payload.toString()}"
+    )
+    plugin.notifyListeners("notificationReceived", payload, true)
+} else {
+    android.util.Log.d(
+        "VairagyaNotif",
+        "BRIDGE NOT READY — QUEUING: ${payload.toString()}"
+    ) else {
                 synchronized(pending) {
                     if (pending.size > 200) pending.removeAt(0)
                     pending.add(payload)
