@@ -35,7 +35,7 @@ export const BANK_SENDERS =
 
 // A message must positively signal a completed money movement.
 export const TXN_HINT =
-  /\b(?:credited|debited|received|paid|sent|spent|withdrawn|deposited|transferred|refunded|refund|purchase|payment of|debit for|credit for|txn|imps|neft|rtgs|upi|a\/c|acct)\b/i;
+  /\b(?:credited|credit|debited|debit|received|receive|paid|pay|sent|send|spent|withdrawn|deposited|transferred|refunded|refund|purchase|payment of|debit for|credit for|txn|imps|neft|rtgs|upi|a\/c|acct)\b/i;
 
 // Immediate rejects — OTP codes, promotional offers, delivery updates, spam.
 export const NOISE_RE =
