@@ -2,13 +2,9 @@ package app.vairagya.notifications
 
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import android.util.Log
 import com.getcapacitor.JSObject
 
-/**
- * Listens for notifications posted by payment and banking apps and
- * forwards title/body to the web layer, where the shared transaction
- * parser extracts amount, direction, merchant, UPI id and reference.
- */
 class VairagyaNotificationService : NotificationListenerService() {
 
     private val watched = setOf(
@@ -38,24 +34,48 @@ class VairagyaNotificationService : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         val notification = sbn ?: return
         val pkg = notification.packageName ?: return
-        val interesting = watched.contains(pkg) ||
+
+        val interesting =
+            watched.contains(pkg) ||
             pkg.contains("bank", true) ||
             pkg.contains("upi", true) ||
             pkg.contains("pay", true)
+
         if (!interesting) return
 
         val extras = notification.notification?.extras ?: return
-        val title = extras.getCharSequence("android.title")?.toString() ?: ""
-        val text = extras.getCharSequence("android.text")?.toString()
-            ?: extras.getCharSequence("android.bigText")?.toString()
-            ?: ""
-        if (title.isEmpty() && text.isEmpty()) return
+
+        val title =
+            extras.getCharSequence("android.title")?.toString() ?: ""
+
+        val text =
+            extras.getCharSequence("android.text")?.toString()
+                ?: extras.getCharSequence("android.bigText")?.toString()
+                ?: ""
+
+        val lines =
+            extras.getCharSequenceArray("android.textLines")
+                ?.joinToString(" ")
+                ?: ""
+
+        val combinedText = listOf(title, text, lines)
+            .filter { it.isNotBlank() }
+            .distinct()
+            .joinToString(" — ")
+
+        if (combinedText.isBlank()) return
+
+        Log.d(
+            "VairagyaNotification",
+            "RECEIVED: package=$pkg | text=$combinedText"
+        )
 
         val payload = JSObject()
         payload.put("package", pkg)
         payload.put("title", title)
-        payload.put("text", text)
+        payload.put("text", combinedText)
         payload.put("time", notification.postTime)
+
         NotificationListenerPlugin.emit(payload)
     }
 }
