@@ -31,9 +31,34 @@ class VairagyaNotificationService : NotificationListenerService() {
         "com.fedmobile"
     )
 
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        Log.d("VairagyaNotif", "NOTIFICATION LISTENER CONNECTED")
+
+        // Also inspect notifications that are currently active.
+        val active = getActiveNotifications()
+        Log.d("VairagyaNotif", "Active notifications: ${active.size}")
+
+        for (sbn in active) {
+            processNotification(sbn)
+        }
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
-        val notification = sbn ?: return
-        val pkg = notification.packageName ?: return
+        if (sbn == null) return
+
+        Log.d(
+            "VairagyaNotif",
+            "NEW NOTIFICATION from package: ${sbn.packageName}"
+        )
+
+        processNotification(sbn)
+    }
+
+    private fun processNotification(sbn: StatusBarNotification) {
+        val pkg = sbn.packageName ?: return
+
+        Log.d("VairagyaNotif", "Checking package: $pkg")
 
         val interesting =
             watched.contains(pkg) ||
@@ -41,9 +66,13 @@ class VairagyaNotificationService : NotificationListenerService() {
             pkg.contains("upi", true) ||
             pkg.contains("pay", true)
 
-        if (!interesting) return
+        if (!interesting) {
+            Log.d("VairagyaNotif", "Ignored package: $pkg")
+            return
+        }
 
-        val extras = notification.notification?.extras ?: return
+        val notification = sbn.notification ?: return
+        val extras = notification.extras ?: return
 
         val title =
             extras.getCharSequence("android.title")?.toString() ?: ""
@@ -55,26 +84,26 @@ class VairagyaNotificationService : NotificationListenerService() {
 
         val lines =
             extras.getCharSequenceArray("android.textLines")
-                ?.joinToString(" ")
+                ?.joinToString(" ") { it.toString() }
                 ?: ""
 
-        val combinedText = listOf(title, text, lines)
+        val finalText = listOf(title, text, lines)
             .filter { it.isNotBlank() }
             .distinct()
             .joinToString(" — ")
 
-        if (combinedText.isBlank()) return
-
         Log.d(
-            "VairagyaNotification",
-            "RECEIVED: package=$pkg | text=$combinedText"
+            "VairagyaNotif",
+            "CAPTURED: package=$pkg text=$finalText"
         )
+
+        if (finalText.isBlank()) return
 
         val payload = JSObject()
         payload.put("package", pkg)
         payload.put("title", title)
-        payload.put("text", combinedText)
-        payload.put("time", notification.postTime)
+        payload.put("text", finalText)
+        payload.put("time", sbn.postTime)
 
         NotificationListenerPlugin.emit(payload)
     }
