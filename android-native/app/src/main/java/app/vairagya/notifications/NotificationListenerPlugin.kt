@@ -29,24 +29,33 @@ class NotificationListenerPlugin : Plugin() {
 
         /** Called from VairagyaNotificationService for every posted notification. */
         fun emit(payload: JSObject) {
-            val plugin = instance
-            if (plugin != null) {
-    android.util.Log.d(
-        "VairagyaNotif",
-        "BRIDGE EMIT: ${payload.toString()}"
-    )
-    plugin.notifyListeners("notificationReceived", payload, true)
-} else {
-    android.util.Log.d(
-        "VairagyaNotif",
-        "BRIDGE NOT READY — QUEUING: ${payload.toString()}"
-    ) else {
-                synchronized(pending) {
-                    if (pending.size > 200) pending.removeAt(0)
-                    pending.add(payload)
-                }
+    val plugin = instance
+
+    if (plugin != null) {
+        android.util.Log.d(
+            "VairagyaNotif",
+            "BRIDGE EMIT: ${payload}"
+        )
+
+        plugin.notifyListeners(
+            "notificationReceived",
+            payload,
+            true
+        )
+    } else {
+        android.util.Log.d(
+            "VairagyaNotif",
+            "BRIDGE NOT READY — QUEUING: ${payload}"
+        )
+
+        synchronized(pending) {
+            if (pending.size > 200) {
+                pending.removeAt(0)
             }
+            pending.add(payload)
         }
+    }
+}
 
         private fun drain(plugin: NotificationListenerPlugin) {
             val queued: List<JSObject>
