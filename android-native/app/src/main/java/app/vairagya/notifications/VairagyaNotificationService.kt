@@ -1,5 +1,6 @@
 package app.vairagya.notifications
 
+import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
@@ -33,8 +34,122 @@ class VairagyaNotificationService : NotificationListenerService() {
 
     override fun onListenerConnected() {
         super.onListenerConnected()
+
         Log.d("VairagyaNotif", "NOTIFICATION LISTENER CONNECTED")
 
+        try {
+            val active = getActiveNotifications()
+            Log.d("VairagyaNotif", "Active notifications: ${active.size}")
+
+            for (sbn in active) {
+                processNotification(sbn)
+            }
+        } catch (e: Exception) {
+            Log.e("VairagyaNotif", "Failed reading active notifications", e)
+        }
+    }
+
+    override fun onNotificationPosted(sbn: StatusBarNotification?) {
+        if (sbn == null) return
+
+        Log.d(
+            "VairagyaNotif",
+            "NEW NOTIFICATION from package: ${sbn.packageName}"
+        )
+
+        processNotification(sbn)
+    }
+
+    private fun processNotification(sbn: StatusBarNotification) {
+        val pkg = sbn.packageName ?: return
+
+        val interesting =
+            watched.contains(pkg) ||
+            pkg.contains("bank", true) ||
+            pkg.contains("upi", true) ||
+            pkg.contains("pay", true)
+
+        if (!interesting) {
+            Log.d("VairagyaNotif", "Ignored package: $pkg")
+            return
+        }
+
+        val notification = sbn.notification ?: return
+        val extras = notification.extras ?: return
+
+        val title =
+            extras.getCharSequence(Notification.EXTRA_TITLE)
+                ?.toString()
+                ?.trim()
+                ?: ""
+
+        val text =
+            extras.getCharSequence(Notification.EXTRA_TEXT)
+                ?.toString()
+                ?.trim()
+                ?: ""
+
+        val bigText =
+            extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
+                ?.toString()
+                ?.trim()
+                ?: ""
+
+        val subText =
+            extras.getCharSequence(Notification.EXTRA_SUB_TEXT)
+                ?.toString()
+                ?.trim()
+                ?: ""
+
+        val infoText =
+            extras.getCharSequence(Notification.EXTRA_INFO_TEXT)
+                ?.toString()
+                ?.trim()
+                ?: ""
+
+        val summaryText =
+            extras.getCharSequence(Notification.EXTRA_SUMMARY_TEXT)
+                ?.toString()
+                ?.trim()
+                ?: ""
+
+        val lines =
+            extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
+                ?.map { it.toString().trim() }
+                ?.filter { it.isNotBlank() }
+                ?.joinToString(" ")
+                ?: ""
+
+        val finalText = listOf(
+            title,
+            text,
+            bigText,
+            subText,
+            infoText,
+            summaryText,
+            lines
+        )
+            .filter { it.isNotBlank() }
+            .distinct()
+            .joinToString(" — ")
+
+        Log.d(
+            "VairagyaNotif",
+            "CAPTURED: package=$pkg title=$title text=$finalText"
+        )
+
+        if (finalText.isBlank()) return
+
+        val payload = JSObject().apply {
+            put("package", pkg)
+            put("title", title)
+            put("text", finalText)
+            put("time", sbn.postTime)
+        }
+
+        NotificationListenerPlugin.emit(payload)
+    }
+}
         // Also inspect notifications that are currently active.
         val active = getActiveNotifications()
         Log.d("VairagyaNotif", "Active notifications: ${active.size}")
