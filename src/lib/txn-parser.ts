@@ -104,8 +104,17 @@ export function parseTransactionText(
   const amount = amtMatch ? parseFloat(amtMatch[1].replace(/,/g, "")) : NaN;
   if (!isFinite(amount) || amount <= 0) return null;
 
-  const credit = /\b(credited|received|deposited|refunded|refund|added to)\b/i.test(body);
-  const debit = /\b(debited|paid|sent|spent|withdrawn|purchase|debit)\b/i.test(body);
+  const incomingNotification =
+    /\b(?:someone|has|have)\b.*\b(?:sent|send)\b.*\bto you\b/i.test(body) ||
+    /\b(?:sent|send)\b.*\bto your (?:bank account|account)\b/i.test(body);
+
+const credit =
+    incomingNotification ||
+    /\b(credited|credit|received|receive|deposited|refunded|refund|added to)\b/i.test(body);
+
+const debit =
+    !incomingNotification &&
+    /\b(debited|debit|paid|pay|sent|send|spent|withdrawn|purchase)\b/i.test(body);
   const direction: "credit" | "debit" = credit && !debit ? "credit" : "debit";
 
   const upiMatch = body.match(/([a-zA-Z0-9._-]{2,}@[a-zA-Z]{2,})/);
