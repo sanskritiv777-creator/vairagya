@@ -93,21 +93,37 @@ export async function subscribeNotifications(
   handler: (n: NotificationPayload) => void,
 ): Promise<() => void> {
   const p = getPlugin();
-  if (!p) return () => {};
+
+  if (!p) {
+    console.log("[VairagyaNotif] Native notification plugin unavailable");
+    return () => {};
+  }
+
+  console.log("[VairagyaNotif] Attaching JS notification listener");
 
   const sub = await p.addListener("notificationReceived", (n) => {
     console.log(
       "[VairagyaNotif] JS RECEIVED:",
-      JSON.stringify(n)
+      JSON.stringify(n),
     );
 
     handler(n);
   });
+
   try {
-    await p.startListening();
-  } catch {
-    /* listening starts implicitly once access is granted */
+    const result = await p.startListening();
+
+    console.log(
+      "[VairagyaNotif] Native listener status:",
+      JSON.stringify(result),
+    );
+  } catch (e) {
+    console.log(
+      "[VairagyaNotif] startListening failed:",
+      e,
+    );
   }
+
   return () => {
     void sub.remove();
   };
