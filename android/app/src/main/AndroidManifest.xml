@@ -2,13 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="app.vairagya">
 
-    <!-- Permissions required for SMS and Notifications -->
+    <!-- Existing manifest preserved; added permissions below -->
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application>
-        <!-- Receiver registered for incoming SMS -->
+        <!-- existing application contents preserved; added receiver and service below -->
         <receiver
             android:name="app.vairagya.sms.SmsReceiver"
             android:exported="true"
@@ -18,7 +18,6 @@
             </intent-filter>
         </receiver>
 
-        <!-- Notification listener service -->
         <service
             android:name="app.vairagya.notifications.VairagyaNotificationService"
             android:exported="true"
