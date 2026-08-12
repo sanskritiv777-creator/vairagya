@@ -35,6 +35,11 @@ jobs:
 
       - name: Sync Capacitor
         run: bunx cap sync android
+      - name: Upload generated Android project
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-android-project
+          path: android
     
       - name: Debug Android files
         run: |
