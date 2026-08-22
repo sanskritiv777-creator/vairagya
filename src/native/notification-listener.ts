@@ -1,11 +1,10 @@
 /**
  * Android notification-access bridge.
  *
- * Reads transaction notifications posted by payment apps (PhonePe,
- * Google Pay, Paytm, BHIM, Amazon Pay, WhatsApp Pay) and banking apps via
- * the project's native `NotificationListener` plugin
- * (`android-native/.../notifications/`). No-ops on web.
+ * Captures payment/banking notifications and also retrieves notifications
+ * that arrived while Vairagya was closed.
  */
+
 import { registerPlugin } from "@capacitor/core";
 import { isNative } from "./platform";
 
@@ -18,17 +17,29 @@ export type NotificationPayload = {
 
 type ListenerPlugin = {
   checkPermission(): Promise<{ granted: boolean }>;
+
   requestPermission(): Promise<{ opened: boolean }>;
+
   startListening(): Promise<{ listening: boolean }>;
+
+  getPendingNotifications(): Promise<{
+    notifications: NotificationPayload[];
+  }>;
+
   addListener(
     event: "notificationReceived",
     cb: (n: NotificationPayload) => void,
-  ): Promise<{ remove: () => Promise<void> }>;
+  ): Promise<{
+    remove: () => Promise<void>;
+  }>;
 };
 
-const NotificationListener = registerPlugin<ListenerPlugin>("NotificationListener");
+const NotificationListener =
+  registerPlugin<ListenerPlugin>("NotificationListener");
 
-/** Payment + banking app packages we care about. */
+/**
+ * Payment + banking app packages.
+ */
 export const TXN_PACKAGES = [
   "com.phonepe.app",
   "com.google.android.apps.nbu.paisa.user",
@@ -61,70 +72,164 @@ export function isNotificationImportSupported(): boolean {
   return getPlugin() !== null;
 }
 
-/** True when the user has already granted Notification Access. */
 export async function hasNotificationAccess(): Promise<boolean> {
-  const p = getPlugin();
-  if (!p) return false;
+  const plugin = getPlugin();
+
+  if (!plugin) {
+    return false;
+  }
+
   try {
-    const res = await p.checkPermission();
-    return !!res?.granted;
+    const result = await plugin.checkPermission();
+
+    return !!result?.granted;
   } catch {
     return false;
   }
 }
 
-/**
- * Opens Android's Notification Access settings screen. Android has no
- * in-app dialog for this permission, so we send the user to Settings and
- * re-check when the app resumes.
- */
 export async function requestNotificationAccess(): Promise<boolean> {
-  const p = getPlugin();
-  if (!p) return false;
+  const plugin = getPlugin();
+
+  if (!plugin) {
+    return false;
+  }
+
   try {
-    await p.requestPermission();
+    await plugin.requestPermission();
     return true;
   } catch {
     return false;
   }
 }
 
+/**
+ * Reads notifications that arrived while Vairagya was closed.
+ *
+ * These are stored by NotificationQueue.kt and removed from the queue
+ * only after being successfully returned to JavaScript.
+ */
+async function drainPendingNotifications(
+  handler: (n: NotificationPayload) => void,
+): Promise<void> {
+
+  const plugin = getPlugin();
+
+  if (!plugin) {
+    return;
+  }
+
+  try {
+    const result =
+      await plugin.getPendingNotifications();
+
+    const notifications =
+      result?.notifications ?? [];
+
+    console.log(
+      "[VairagyaNotif] Pending notifications:",
+      notifications.length,
+    );
+
+    for (const notification of notifications) {
+      try {
+        console.log(
+          "[VairagyaNotif] PROCESSING SAVED:",
+          JSON.stringify(notification),
+        );
+
+        handler(notification);
+      } catch (error) {
+        console.error(
+          "[VairagyaNotif] Failed to process saved notification:",
+          error,
+        );
+      }
+    }
+  } catch (error) {
+    console.error(
+      "[VairagyaNotif] Failed to drain pending notifications:",
+      error,
+    );
+  }
+}
+
 export async function subscribeNotifications(
   handler: (n: NotificationPayload) => void,
 ): Promise<() => void> {
-  const p = getPlugin();
 
-  if (!p) {
-    console.log("[VairagyaNotif] Native notification plugin unavailable");
+  const plugin = getPlugin();
+
+  if (!plugin) {
+    console.log(
+      "[VairagyaNotif] Native notification plugin unavailable",
+    );
+
     return () => {};
   }
 
-  console.log("[VairagyaNotif] Attaching JS notification listener");
+  console.log(
+    "[VairagyaNotif] Attaching JS notification listener",
+  );
 
-  const sub = await p.addListener("notificationReceived", (n) => {
-    console.log(
-      "[VairagyaNotif] JS RECEIVED:",
-      JSON.stringify(n),
+  /*
+   * First retrieve notifications that arrived while the app
+   * was closed.
+   */
+  await drainPendingNotifications(handler);
+
+  /*
+   * Then listen for notifications arriving while the app
+   * is running.
+   */
+  const subscription =
+    await plugin.addListener(
+      "notificationReceived",
+      (notification) => {
+
+        console.log(
+          "[VairagyaNotif] LIVE RECEIVED:",
+          JSON.stringify(notification),
+        );
+
+        try {
+          handler(notification);
+        } catch (error) {
+          console.error(
+            "[VairagyaNotif] Failed to process live notification:",
+            error,
+          );
+        }
+      },
     );
 
-    handler(n);
-  });
-
   try {
-    const result = await p.startListening();
+
+    const result =
+      await plugin.startListening();
 
     console.log(
       "[VairagyaNotif] Native listener status:",
       JSON.stringify(result),
     );
-  } catch (e) {
+
+  } catch (error) {
+
     console.log(
       "[VairagyaNotif] startListening failed:",
-      e,
+      error,
     );
   }
 
+  /*
+   * One more drain after the native listener starts.
+   *
+   * This closes the small timing gap between the first drain
+   * and listener registration.
+   */
+  await drainPendingNotifications(handler);
+
   return () => {
-    void sub.remove();
+    void subscription.remove();
   };
 }
