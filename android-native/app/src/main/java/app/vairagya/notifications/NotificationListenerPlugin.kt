@@ -21,30 +21,28 @@ class NotificationListenerPlugin : Plugin() {
         @Volatile
         private var instance: NotificationListenerPlugin? = null
 
-        private val pending =
-            ArrayList<JSObject>()
+        private val pending = ArrayList<JSObject>()
 
         fun emit(payload: JSObject) {
+            instance?.context?.let { ctx ->
+                try {
+                    NotificationQueue.push(ctx, payload)
+                } catch (e: Exception) {
+                    Log.e(TAG, "QUEUE_PERSIST_FAILED", e)
+                }
+            }
 
             val plugin = instance
 
             if (plugin != null) {
-
-                Log.d(
-                    TAG,
-                    "BRIDGE_EMIT $payload"
-                )
-
+                Log.d(TAG, "BRIDGE_EMIT $payload")
                 plugin.notifyListeners(
                     "notificationReceived",
                     payload,
                     true
                 )
-
             } else {
-
                 synchronized(pending) {
-
                     if (pending.size >= 200) {
                         pending.removeAt(0)
                     }
@@ -59,9 +57,7 @@ class NotificationListenerPlugin : Plugin() {
             }
         }
 
-        private fun drain(
-            plugin: NotificationListenerPlugin
-        ) {
+        private fun drain(plugin: NotificationListenerPlugin) {
 
             val queued: List<JSObject>
 
@@ -76,7 +72,6 @@ class NotificationListenerPlugin : Plugin() {
             )
 
             queued.forEach {
-
                 plugin.notifyListeners(
                     "notificationReceived",
                     it,
@@ -87,37 +82,25 @@ class NotificationListenerPlugin : Plugin() {
     }
 
     override fun load() {
-
         super.load()
 
         instance = this
 
-        Log.d(
-            TAG,
-            "PLUGIN_LOADED"
-        )
+        Log.d(TAG, "PLUGIN_LOADED")
 
         drain(this)
     }
 
     override fun handleOnResume() {
-
         super.handleOnResume()
 
-        Log.d(
-            TAG,
-            "PLUGIN_RESUMED"
-        )
+        Log.d(TAG, "PLUGIN_RESUMED")
 
         drain(this)
     }
 
     override fun handleOnDestroy() {
-
-        Log.d(
-            TAG,
-            "PLUGIN_DESTROYED"
-        )
+        Log.d(TAG, "PLUGIN_DESTROYED")
 
         if (instance === this) {
             instance = null
@@ -128,17 +111,15 @@ class NotificationListenerPlugin : Plugin() {
 
     private fun isEnabled(): Boolean {
 
-        val flat =
-            Settings.Secure.getString(
-                context.contentResolver,
-                "enabled_notification_listeners"
-            ) ?: return false
+        val flat = Settings.Secure.getString(
+            context.contentResolver,
+            "enabled_notification_listeners"
+        ) ?: return false
 
-        val expected =
-            ComponentName(
-                context,
-                VairagyaNotificationService::class.java
-            )
+        val expected = ComponentName(
+            context,
+            VairagyaNotificationService::class.java
+        )
 
         return flat
             .split(":")
@@ -148,17 +129,53 @@ class NotificationListenerPlugin : Plugin() {
                     ComponentName.unflattenFromString(item)
 
                 component != null &&
-                    component.packageName ==
-                    expected.packageName &&
-                    component.className ==
-                    expected.className
+                    component.packageName == expected.packageName &&
+                    component.className == expected.className
             }
     }
 
     @PluginMethod
-    fun checkPermission(
-        call: PluginCall
-    ) {
+    fun getPendingNotifications(call: PluginCall) {
+        try {
+            val messages = NotificationQueue.drain(context)
+            val arr = com.getcapacitor.JSArray()
+
+            messages.forEach {
+                arr.put(it)
+            }
+
+            call.resolve(
+                JSObject().apply {
+                    put("notifications", arr)
+                }
+            )
+
+            Log.d(
+                TAG,
+                "getPendingNotifications -> ${messages.size}"
+            )
+
+        } catch (e: Exception) {
+
+            Log.e(
+                TAG,
+                "getPendingNotifications failed",
+                e
+            )
+
+            call.resolve(
+                JSObject().apply {
+                    put(
+                        "notifications",
+                        com.getcapacitor.JSArray()
+                    )
+                }
+            )
+        }
+    }
+
+    @PluginMethod
+    fun checkPermission(call: PluginCall) {
 
         val granted = isEnabled()
 
@@ -175,23 +192,18 @@ class NotificationListenerPlugin : Plugin() {
     }
 
     @PluginMethod
-    fun requestPermission(
-        call: PluginCall
-    ) {
+    fun requestPermission(call: PluginCall) {
 
         Log.d(
             TAG,
             "OPENING_NOTIFICATION_ACCESS_SETTINGS"
         )
 
-        val intent =
-            Intent(
-                Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS
-            ).apply {
-                addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK
-                )
-            }
+        val intent = Intent(
+            Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS
+        ).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
 
         context.startActivity(intent)
 
@@ -203,9 +215,7 @@ class NotificationListenerPlugin : Plugin() {
     }
 
     @PluginMethod
-    fun startListening(
-        call: PluginCall
-    ) {
+    fun startListening(call: PluginCall) {
 
         val enabled = isEnabled()
 
