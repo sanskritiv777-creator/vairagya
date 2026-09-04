@@ -137,7 +137,10 @@ class NotificationListenerPlugin : Plugin() {
     @PluginMethod
     fun getPendingNotifications(call: PluginCall) {
         try {
-            val messages = NotificationQueue.drain(context)
+            // peek (not drain): the queue is only cleared once JS confirms the
+            // events were processed via clearPendingNotifications(), so a crash
+            // mid-import can never lose a captured transaction.
+            val messages = NotificationQueue.peek(context)
             val arr = com.getcapacitor.JSArray()
 
             messages.forEach {
@@ -172,6 +175,17 @@ class NotificationListenerPlugin : Plugin() {
                 }
             )
         }
+    }
+
+    @PluginMethod
+    fun clearPendingNotifications(call: PluginCall) {
+        try {
+            NotificationQueue.clear(context)
+            Log.d(TAG, "clearPendingNotifications -> cleared")
+        } catch (e: Exception) {
+            Log.e(TAG, "clearPendingNotifications failed", e)
+        }
+        call.resolve(JSObject().apply { put("cleared", true) })
     }
 
     @PluginMethod
