@@ -141,7 +141,7 @@ export function parseTransactionText(
     body.match(/UPI\/(?:P2[APM]|CR|DR)\/\d+\/([A-Z][A-Za-z0-9&'.\- ]{2,40})/) ||
     // Notification wording, often lower-case: "paid to zomato", "received from ram"
     body.match(
-      /(?:paid to|received from|sent to|transferred to|from|to)\s+([A-Za-z][A-Za-z0-9&'.\- ]{2,40}?)(?=\s+(?:on|via|using|ref|upi|for|is|was|successful)|[.,;!]|$)/i,
+      /(?:paid to|received from|sent to|transferred to|from|to)\s+([A-Za-z][A-Za-z0-9&'.\- ]{2,40}?)(?=\s*(?:[-–—|]|on |via |using |ref|upi|for |is |was |successful)|[.,;!]|$)/i,
     );
   if (named) counterparty = named[1].trim().replace(/\s+/g, " ");
   if (counterparty && /^(?:your|you|a\/c|account|bank|upi)$/i.test(counterparty)) counterparty = null;
