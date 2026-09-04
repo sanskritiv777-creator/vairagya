@@ -98,8 +98,11 @@ export async function ingestTransactions(parsed: ParsedTxn[]): Promise<IngestRes
     return ok;
   });
 
+  const deduped = await dropCrossSourceDuplicates(user_id, valid);
+
   let inserted = 0;
-  let skipped = rows.length - valid.length;
+  let skipped = rows.length - deduped.length;
+
 
   for (let i = 0; i < valid.length; i += CHUNK) {
     const chunk = valid.slice(i, i + CHUNK);
