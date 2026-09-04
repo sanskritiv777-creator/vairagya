@@ -167,6 +167,19 @@ class VairagyaNotificationService : NotificationListenerService() {
             return
         }
 
+        // Only forward notifications that actually look financial: they must
+        // mention an amount AND a money-movement word. This keeps chat
+        // notifications from WhatsApp (and app promos) out of the parser while
+        // imposing NO minimum amount — ₹1 qualifies exactly like ₹3000.
+        if (!looksFinancial(finalText)) {
+            Log.d(
+                TAG,
+                "NOT_FINANCIAL package=$pkg text=${finalText.take(120)}"
+            )
+            return
+        }
+
+
         Log.d(
             TAG,
             "CAPTURED event=$sourceEvent package=$pkg text=${finalText.take(500)}"
