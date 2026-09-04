@@ -26,6 +26,8 @@ type ListenerPlugin = {
     notifications: NotificationPayload[];
   }>;
 
+  clearPendingNotifications?(): Promise<{ cleared: boolean }>;
+
   addListener(
     event: "notificationReceived",
     cb: (n: NotificationPayload) => void,
@@ -109,8 +111,8 @@ export async function requestNotificationAccess(): Promise<boolean> {
  * These are stored by NotificationQueue.kt and removed from the queue
  * only after being successfully returned to JavaScript.
  */
-async function drainPendingNotifications(
-  handler: (n: NotificationPayload) => void,
+export async function drainPendingNotifications(
+  handler: (n: NotificationPayload) => void | Promise<void>,
 ): Promise<void> {
 
   const plugin = getPlugin();
@@ -138,13 +140,22 @@ async function drainPendingNotifications(
           JSON.stringify(notification),
         );
 
-        handler(notification);
+        await handler(notification);
       } catch (error) {
         console.error(
           "[VairagyaNotif] Failed to process saved notification:",
           error,
         );
       }
+    }
+
+    /*
+     * Only now, after every queued event was handed to the app, do we
+     * clear the persisted queue — so a crash mid-import cannot lose a
+     * captured transaction.
+     */
+    if (notifications.length && plugin.clearPendingNotifications) {
+      await plugin.clearPendingNotifications();
     }
   } catch (error) {
     console.error(
@@ -155,7 +166,7 @@ async function drainPendingNotifications(
 }
 
 export async function subscribeNotifications(
-  handler: (n: NotificationPayload) => void,
+  handler: (n: NotificationPayload) => void | Promise<void>,
 ): Promise<() => void> {
 
   const plugin = getPlugin();
@@ -193,7 +204,7 @@ export async function subscribeNotifications(
         );
 
         try {
-          handler(notification);
+          void handler(notification);
         } catch (error) {
           console.error(
             "[VairagyaNotif] Failed to process live notification:",
