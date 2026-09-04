@@ -36,6 +36,22 @@ class VairagyaNotificationService : NotificationListenerService() {
         "com.fedmobile"
     )
 
+
+    private val AMOUNT_RE = Regex(
+        "(?:\\u20B9|Rs\\.?|INR)\\s?[0-9][0-9,]*(?:\\.[0-9]{1,2})?|[0-9][0-9,]*(?:\\.[0-9]{1,2})?\\s?(?:INR|rupees)",
+        RegexOption.IGNORE_CASE
+    )
+
+    private val VERB_RE = Regex(
+        "credited|credit|debited|debit|received|receive|paid|payment|sent|send|transferred|transfer|deposited|withdrawn|spent|refund|upi|txn|transaction",
+        RegexOption.IGNORE_CASE
+    )
+
+    private val NOISE_RE = Regex(
+        "otp|one[ -]?time password|do not share|cashback offer|reward|scratch card|invite|referral|complete your kyc|reminder to pay|due on|bill is due|autopay set|request(?:ed)? (?:money|payment) from you|collect request",
+        RegexOption.IGNORE_CASE
+    )
+
     override fun onListenerConnected() {
         super.onListenerConnected()
 
@@ -213,5 +229,17 @@ class VairagyaNotificationService : NotificationListenerService() {
         )
 
         NotificationListenerPlugin.emit(payload)
+    }
+
+    /**
+     * Amount + money-movement keyword gate. No minimum amount is applied.
+     */
+    private fun looksFinancial(text: String): Boolean {
+
+        val hasAmount = AMOUNT_RE.containsMatchIn(text)
+        val hasVerb = VERB_RE.containsMatchIn(text)
+        val isNoise = NOISE_RE.containsMatchIn(text)
+
+        return hasAmount && hasVerb && !isNoise
     }
 }
