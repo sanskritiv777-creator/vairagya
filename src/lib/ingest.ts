@@ -104,8 +104,8 @@ export async function ingestTransactions(parsed: ParsedTxn[]): Promise<IngestRes
   let skipped = rows.length - deduped.length;
 
 
-  for (let i = 0; i < valid.length; i += CHUNK) {
-    const chunk = valid.slice(i, i + CHUNK);
+  for (let i = 0; i < deduped.length; i += CHUNK) {
+    const chunk = deduped.slice(i, i + CHUNK);
     ilog("db", `writing ${chunk.length} candidate transaction(s) [${i + 1}-${i + chunk.length}]`);
 
     const { data, error } = await supabase
