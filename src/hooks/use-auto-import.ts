@@ -31,6 +31,8 @@ import {
   hasNotificationAccess,
   requestNotificationAccess,
   subscribeNotifications,
+  drainPendingNotifications,
+  type NotificationPayload,
 } from "@/native/notification-listener";
 
 export type ImportPhase =
@@ -180,6 +182,48 @@ export function useAutoImport(onImported: () => void) {
   }, [patch]);
 
 
+  /**
+   * Handles one payment-app notification: parse -> ingest -> refresh UI.
+   * Used for both live events and events persisted while the app was closed.
+   */
+  const handleNotification = useCallback(
+    async (n: NotificationPayload) => {
+      const text = [n.title ?? "", n.text ?? ""].filter(Boolean).join(" — ");
+      if (!text.trim()) return;
+      ilog("notification", `notification from ${n.package ?? "unknown"}`, text.slice(0, 120));
+      const parsed = parseTransactionText(text, {
+        source: "notification",
+        sender: n.package ?? "",
+        timestamp: n.time ?? Date.now(),
+      });
+      if (!parsed) return;
+      try {
+        const { inserted, skipped } = await ingestTransactions([parsed]);
+        ilog("notification", `imported ${inserted}, duplicates skipped ${skipped}`);
+        if (inserted > 0) {
+          importedRef.current();
+          patch({ status: `Auto-imported ${inserted} transaction from a payment notification.` });
+        }
+      } catch (e) {
+        ilog("db", `notification write failed: ${describeDbError(e)}`);
+      }
+    },
+    [patch],
+  );
+
+  /**
+   * Drains notifications the native listener persisted while no JS layer was
+   * attached (app closed / process killed). The queue is only cleared after
+   * every event has been processed.
+   */
+  const drainNotificationQueue = useCallback(async () => {
+    try {
+      await drainPendingNotifications(handleNotification);
+    } catch (e) {
+      ilog("notification", `queue drain failed: ${describeDbError(e)}`);
+    }
+  }, [handleNotification]);
+
   /** Ask for SMS permission, then import immediately when granted. */
   const enableSms = useCallback(async () => {
     if (!native) return false;
@@ -241,27 +285,9 @@ export function useAutoImport(onImported: () => void) {
 
 
     async function attachNotifications() {
-      const stop = await subscribeNotifications(async (n) => {
-        const text = [n.title ?? "", n.text ?? ""].filter(Boolean).join(" — ");
-        ilog("notification", `notification from ${n.package ?? "unknown"}`, text.slice(0, 120));
-        const parsed = parseTransactionText(text, {
-          source: "notification",
-          sender: n.package ?? "",
-          timestamp: n.time ?? Date.now(),
-        });
-        if (!parsed) return;
-        try {
-          const { inserted, skipped } = await ingestTransactions([parsed]);
-          ilog("notification", `imported ${inserted}, duplicates skipped ${skipped}`);
-          if (inserted > 0) {
-            importedRef.current();
-            patch({ status: `Auto-imported ${inserted} transaction from a payment notification.` });
-          }
-        } catch (e) {
-          ilog("db", `notification write failed: ${describeDbError(e)}`);
-        }
-      });
+      const stop = await subscribeNotifications(handleNotification);
       cleanups.push(stop);
+      ilog("notification", "notification listener attached");
     }
 
     void (async () => {
@@ -298,6 +324,7 @@ export function useAutoImport(onImported: () => void) {
           if (notif && !s.notifGranted) void attachNotifications();
           return { ...s, smsGranted: sms, notifGranted: notif };
         });
+        if (notif) await drainNotificationQueue();
         if (sms && !fresh) {
           // Always drain the native queue first — it holds the exact SMS the
           // receiver captured while JS was unavailable, and it is cheap.
@@ -338,6 +365,7 @@ export function useAutoImport(onImported: () => void) {
     const queuePoll = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
       void drainNativeQueue();
+      void drainNotificationQueue();
     }, 10000);
 
 
