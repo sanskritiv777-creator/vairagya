@@ -49,13 +49,22 @@ jobs:
       - name: Prepare launcher icon + splash source images
         run: node scripts/prepare-android-assets.mjs
 
+      - name: Setup Node 20 (for @capacitor/assets)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Generate Android launcher/adaptive/monochrome icons + splash
+        # Run via npm/Node, not bunx: Bun cannot load sharp's native module,
+        # which made this step fail. npm installs the correct prebuilt binary.
         run: |
-          bunx @capacitor/assets generate --android \
+          npm install --no-save --include=optional @capacitor/assets@3 sharp
+          npx --no-install @capacitor/assets generate --android \
             --iconBackgroundColor "#07050F" \
             --iconBackgroundColorDark "#07050F" \
             --splashBackgroundColor "#07050F" \
             --splashBackgroundColorDark "#07050F"
+
 
       - name: Generate notification status-bar icon (ic_stat_icon)
         run: |
