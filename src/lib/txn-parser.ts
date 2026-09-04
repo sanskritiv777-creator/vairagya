@@ -104,18 +104,30 @@ export function parseTransactionText(
   const amount = amtMatch ? parseFloat(amtMatch[1].replace(/,/g, "")) : NaN;
   if (!isFinite(amount) || amount <= 0) return null;
 
-  const incomingNotification =
+  // Direction. Payment-app notifications and bank SMS use different wording,
+  // so weigh explicit money-in vs money-out phrases instead of bare verbs.
+  const incoming =
     /\b(?:someone|has|have)\b.*\b(?:sent|send)\b.*\bto you\b/i.test(body) ||
-    /\b(?:sent|send)\b.*\bto your (?:bank account|account)\b/i.test(body);
+    /\b(?:sent|send|paid)\b.*\bto your (?:bank account|account|upi|wallet)\b/i.test(body);
 
-const credit =
-    incomingNotification ||
-    /\b(credited|credit|received|receive|deposited|refunded|refund|added to)\b/i.test(body);
+  const strongCredit =
+    incoming ||
+    /\b(?:credited|credit(?:ed)?\s+to|deposited|refunded|refund of|money received|payment received|amount received|received from|added to your|credit alert|you received)\b/i.test(
+      body,
+    );
 
-const debit =
-    !incomingNotification &&
-    /\b(debited|debit|paid|pay|sent|send|spent|withdrawn|purchase)\b/i.test(body);
-  const direction: "credit" | "debit" = credit && !debit ? "credit" : "debit";
+  const strongDebit =
+    /\b(?:debited|debit(?:ed)?\s+from|withdrawn|paid to|you paid|payment of|sent to|transferred to|spent(?:\s+at)?|purchase|debit alert|payment successful to)\b/i.test(
+      body,
+    );
+
+  const direction: "credit" | "debit" = strongCredit && !strongDebit
+    ? "credit"
+    : strongDebit
+      ? "debit"
+      : /\b(?:received|credited)\b/i.test(body)
+        ? "credit"
+        : "debit";
 
   const upiMatch = body.match(/([a-zA-Z0-9._-]{2,}@[a-zA-Z]{2,})/);
   const upi_id = upiMatch ? upiMatch[1] : null;
@@ -126,10 +138,16 @@ const debit =
       /(?:to|from|by|at)\s+((?:[A-Z][A-Za-z0-9&'.\- ]{1,40}?))(?=\s+(?:on|via|Ref|UPI|Info|Bal|A\/c|for)|[.,;]|$)/,
     ) ||
     body.match(/VPA\s+([a-zA-Z0-9._-]+@[a-zA-Z]{2,})/i) ||
-    body.match(/UPI\/(?:P2[APM]|CR|DR)\/\d+\/([A-Z][A-Za-z0-9&'.\- ]{2,40})/);
-  if (named) counterparty = named[1].trim();
+    body.match(/UPI\/(?:P2[APM]|CR|DR)\/\d+\/([A-Z][A-Za-z0-9&'.\- ]{2,40})/) ||
+    // Notification wording, often lower-case: "paid to zomato", "received from ram"
+    body.match(
+      /(?:paid to|received from|sent to|transferred to|from|to)\s+([A-Za-z][A-Za-z0-9&'.\- ]{2,40}?)(?=\s*(?:[-–—|]|on |via |using |ref|upi|for |is |was |successful)|[.,;!]|$)/i,
+    );
+  if (named) counterparty = named[1].trim().replace(/\s+/g, " ");
+  if (counterparty && /^(?:your|you|a\/c|account|bank|upi)$/i.test(counterparty)) counterparty = null;
   if (!counterparty && upi_id) counterparty = upi_id;
   if (!counterparty) counterparty = "Unknown";
+
 
   const refMatch = body.match(
     /(?:Ref(?:erence)?(?:\s*No\.?|#)?|UTR|Txn(?:\s*ID)?|RRN)[:\s]*([A-Za-z0-9]{6,})/i,
