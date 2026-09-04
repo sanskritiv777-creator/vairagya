@@ -55,15 +55,17 @@ jobs:
           node-version: "20"
 
       - name: Generate Android launcher/adaptive/monochrome icons + splash
-        # Run via npm/Node, not bunx: Bun cannot load sharp's native module,
-        # which made this step fail. npm installs the correct prebuilt binary.
+        # Installed globally with npm (not bunx): Bun cannot load sharp's native
+        # module, which is what made this step fail, and a global install keeps
+        # the bun-managed node_modules untouched.
         run: |
-          npm install --no-save --include=optional @capacitor/assets@3 sharp
-          npx --no-install @capacitor/assets generate --android \
+          npm install -g @capacitor/assets@3 sharp
+          capacitor-assets generate --android \
             --iconBackgroundColor "#07050F" \
             --iconBackgroundColorDark "#07050F" \
             --splashBackgroundColor "#07050F" \
             --splashBackgroundColorDark "#07050F"
+
 
 
       - name: Generate notification status-bar icon (ic_stat_icon)
