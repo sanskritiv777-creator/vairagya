@@ -21,6 +21,8 @@ export type UnifiedTxn = {
   refId: string | null;
   bank: string | null;
   method: string;
+  /** Bank-reported account balance after this transaction, when the source gave one. */
+  balance: number | null;
   category: CategoryMeta;
 };
 
@@ -44,6 +46,7 @@ export type UpiRow = {
   bank?: string | null;
   ref_id?: string | null;
   source?: string | null;
+  balance?: number | null;
 };
 
 export function unify(manual: ManualRow[], upi: UpiRow[]): UnifiedTxn[] {
@@ -62,6 +65,7 @@ export function unify(manual: ManualRow[], upi: UpiRow[]): UnifiedTxn[] {
       refId: null,
       bank: null,
       method: "Manual",
+      balance: null,
       category: categorize(`${t.label} ${t.category ?? ""}`, direction),
     };
   });
@@ -86,6 +90,8 @@ export function unify(manual: ManualRow[], upi: UpiRow[]): UnifiedTxn[] {
           : u.source === "manual"
             ? "UPI · manual"
             : "UPI",
+      balance:
+        typeof u.balance === "number" && Number.isFinite(u.balance) ? Number(u.balance) : null,
       category: categorize(raw, u.direction),
     };
   });
