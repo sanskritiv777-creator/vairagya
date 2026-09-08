@@ -922,6 +922,15 @@ function Dashboard() {
           <BottomSheet title="Menu" onClose={() => setSheet(null)}>
             {[
               {
+                icon: FileText,
+                label: "Financial Statements",
+                desc: "Income Statement & Cash Flow",
+                onClick: () => {
+                  setTab("statements");
+                  setSheet(null);
+                },
+              },
+              {
                 icon: User,
                 label: "Profile",
                 desc: "Tax rate, runway, base expenses",
