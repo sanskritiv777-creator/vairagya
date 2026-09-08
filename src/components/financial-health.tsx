@@ -40,7 +40,7 @@ function signed(n: number) {
 
 /* ─────────────────────── dashboard summary card ─────────────────────── */
 
-export const FinancialHealthCard = memo(function FinancialHealthCard({
+export const FinancialStatementsCard = memo(function FinancialStatementsCard({
   items,
   onOpen,
 }: {
@@ -61,7 +61,7 @@ export const FinancialHealthCard = memo(function FinancialHealthCard({
             <Activity size={17} />
           </span>
           <div>
-            <div className="text-[15.5px] text-purple-50">Financial health</div>
+            <div className="text-[15.5px] text-purple-50">Financial Statements</div>
             <div className="text-[12.5px] text-purple-200/55">{s.range.label}</div>
           </div>
         </div>
@@ -69,10 +69,10 @@ export const FinancialHealthCard = memo(function FinancialHealthCard({
       </div>
 
       <div className="grid grid-cols-4 gap-2 mt-4">
-        <MiniStat label="Income" value={inrShort(s.totalIncome)} color="#34D399" />
-        <MiniStat label="Expenses" value={inrShort(s.totalExpenses)} color="#F0ABFC" />
+        <MiniStat label="Total Income" value={inrShort(s.totalIncome)} color="#34D399" />
+        <MiniStat label="Total Expenses" value={inrShort(s.totalExpenses)} color="#F0ABFC" />
         <MiniStat
-          label="Net"
+          label="Net Income"
           value={`${s.netIncome >= 0 ? "+" : "−"}${inrShort(Math.abs(s.netIncome))}`}
           color={s.netIncome >= 0 ? "#6EE7B7" : "#FCA5A5"}
         />
