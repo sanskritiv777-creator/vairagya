@@ -714,6 +714,7 @@ function Dashboard() {
             {tab === "privacy" && <InfoPanel kind="privacy" />}
             {tab === "help" && <InfoPanel kind="help" />}
             {tab === "feedback" && <InfoPanel kind="feedback" />}
+            {tab === "statements" && <FinancialStatementsPanel items={items} />
             {tab === "profile" && (
               <ProfilePanel
                 taxRate={taxRate}
