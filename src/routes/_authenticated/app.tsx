@@ -44,6 +44,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { ilog } from "@/lib/ingest-log";
 import { fetchInsights } from "@/lib/insights-client";
 import { useAutoImport, isNativeAndroidRuntime } from "@/hooks/use-auto-import";
+import {
+  FinancialStatementsCard,
+  FinancialStatementsPanel,
+} from "@/components/financial-health";
 type AutoImport = ReturnType<typeof useAutoImport>;
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -269,6 +273,7 @@ function Dashboard() {
     | "privacy"
     | "help"
     | "feedback"
+    | "statements"
   >("home");
   const [sheet, setSheet] = useState<null | "income" | "expense" | "transfer" | "menu" | "add">(
     null,
