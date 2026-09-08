@@ -509,6 +509,14 @@ function Dashboard() {
           </div>
         )}
 
+        {/* ── Financial Statements ─────────────────────────────────────── */}
+        <Section
+          title="Financial Statements"
+          action={{ label: "Open", onClick: () => setTab("statements") }}
+        >
+          <FinancialStatementsCard items={items} onOpen={() => setTab("statements")} />
+        </Section>
+
         {/* ── Today's spending ─────────────────────────────────────────── */}
         {summary.todayItems.length > 0 && (
           <Section title="Today's spending" trailing={currency(summary.todaySpend)}>
@@ -652,7 +660,9 @@ function Dashboard() {
                                   ? "Privacy"
                                   : tab === "help"
                                     ? "Help"
-                                    : tab === "feedback"
+                                    : tab === "statements"
+                                      ? "Financial Statements"
+                                      : tab === "feedback"
                                       ? "Feedback"
                                       : "Calculator"
             }
