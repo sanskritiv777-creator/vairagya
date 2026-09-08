@@ -37,6 +37,7 @@ import {
   Flame,
   Store,
   ArrowRight,
+  FileText,
 } from "lucide-react";
 import { unify, summarize, groupByPeriod, type UnifiedTxn } from "@/lib/analytics";
 import { CATEGORIES, CATEGORY_ORDER, type CategoryKey } from "@/lib/categorize";
