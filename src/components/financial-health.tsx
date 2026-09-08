@@ -40,7 +40,7 @@ function signed(n: number) {
 
 /* ─────────────────────── dashboard summary card ─────────────────────── */
 
-export const FinancialHealthCard = memo(function FinancialHealthCard({
+export const FinancialStatementsCard = memo(function FinancialStatementsCard({
   items,
   onOpen,
 }: {
@@ -61,7 +61,7 @@ export const FinancialHealthCard = memo(function FinancialHealthCard({
             <Activity size={17} />
           </span>
           <div>
-            <div className="text-[15.5px] text-purple-50">Financial health</div>
+            <div className="text-[15.5px] text-purple-50">Financial Statements</div>
             <div className="text-[12.5px] text-purple-200/55">{s.range.label}</div>
           </div>
         </div>
@@ -69,10 +69,10 @@ export const FinancialHealthCard = memo(function FinancialHealthCard({
       </div>
 
       <div className="grid grid-cols-4 gap-2 mt-4">
-        <MiniStat label="Income" value={inrShort(s.totalIncome)} color="#34D399" />
-        <MiniStat label="Expenses" value={inrShort(s.totalExpenses)} color="#F0ABFC" />
+        <MiniStat label="Total Income" value={inrShort(s.totalIncome)} color="#34D399" />
+        <MiniStat label="Total Expenses" value={inrShort(s.totalExpenses)} color="#F0ABFC" />
         <MiniStat
-          label="Net"
+          label="Net Income"
           value={`${s.netIncome >= 0 ? "+" : "−"}${inrShort(Math.abs(s.netIncome))}`}
           color={s.netIncome >= 0 ? "#6EE7B7" : "#FCA5A5"}
         />
@@ -146,7 +146,8 @@ function Bar({
 
 /* ─────────────────────────── full report panel ───────────────────────── */
 
-export function FinancialHealthPanel({ items }: { items: UnifiedTxn[] }) {
+export function FinancialStatementsPanel({ items }: { items: UnifiedTxn[] }) {
+  const [statement, setStatement] = useState<"income" | "cashflow">("income");
   const [period, setPeriod] = useState<PeriodKey>("this_month");
   const [custom, setCustom] = useState<{ from: string; to: string }>({ from: "", to: "" });
 
@@ -163,7 +164,8 @@ export function FinancialHealthPanel({ items }: { items: UnifiedTxn[] }) {
         </div>
         <p className="text-[15.5px] text-purple-100/85 mt-4">No transactions yet</p>
         <p className="text-[14px] text-purple-200/55 mt-1.5 leading-relaxed">
-          Your income statement and cash flow build themselves as soon as transactions arrive.
+          Your Income Statement and Cash Flow Statement build themselves as soon as transactions
+          arrive.
         </p>
       </div>
     );
@@ -171,6 +173,16 @@ export function FinancialHealthPanel({ items }: { items: UnifiedTxn[] }) {
 
   return (
     <div className="space-y-5">
+      {/* statement switcher */}
+      <div className="grid grid-cols-2 gap-2 va-glass rounded-2xl p-1.5">
+        <SegBtn active={statement === "income"} onClick={() => setStatement("income")}>
+          Income Statement
+        </SegBtn>
+        <SegBtn active={statement === "cashflow"} onClick={() => setStatement("cashflow")}>
+          Cash Flow
+        </SegBtn>
+      </div>
+
       {/* period switcher */}
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
         {(Object.keys(PERIOD_LABELS) as (keyof typeof PERIOD_LABELS)[]).map((k) => (
@@ -206,12 +218,35 @@ export function FinancialHealthPanel({ items }: { items: UnifiedTxn[] }) {
         </div>
       )}
 
-      {/* headline */}
+      {statement === "income" ? (
+        <IncomeStatement s={s} />
+      ) : (
+        <CashFlowStatement s={s} />
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────── Income Statement ────────────────────────── */
+
+function IncomeStatement({ s }: { s: Statements }) {
+  return (
+    <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3">
-        <Tile label="Income" value={inr(s.totalIncome)} icon={ArrowDownLeft} accent="#34D399" />
-        <Tile label="Expenses" value={inr(s.totalExpenses)} icon={ArrowUpRight} accent="#F0ABFC" />
         <Tile
-          label={s.netIncome >= 0 ? "Surplus" : "Deficit"}
+          label="Total Income"
+          value={inr(s.totalIncome)}
+          icon={ArrowDownLeft}
+          accent="#34D399"
+        />
+        <Tile
+          label="Total Expenses"
+          value={inr(s.totalExpenses)}
+          icon={ArrowUpRight}
+          accent="#F0ABFC"
+        />
+        <Tile
+          label="Net Income"
           value={signed(s.netIncome)}
           icon={TrendingUp}
           accent={s.netIncome >= 0 ? "#6EE7B7" : "#FCA5A5"}
@@ -225,7 +260,7 @@ export function FinancialHealthPanel({ items }: { items: UnifiedTxn[] }) {
         />
       </div>
 
-      <Card title="Income vs expenses" sub={s.range.label}>
+      <Card title="Income vs Expenses" sub={s.range.label}>
         <IncomeExpenseBar income={s.totalIncome} expenses={s.totalExpenses} />
         <p className="text-[13px] text-purple-200/60 mt-3.5 leading-relaxed">
           {s.totalIncome === 0 && s.totalExpenses === 0
@@ -236,15 +271,14 @@ export function FinancialHealthPanel({ items }: { items: UnifiedTxn[] }) {
         </p>
       </Card>
 
-      {/* income statement */}
-      <Card title="Income statement" sub="Personal P&L">
-        <LineGroup title="Income" lines={s.incomeLines} total={s.totalIncome} />
+      <Card title="Income Statement" sub={s.range.label}>
+        <LineGroup title="Income breakdown" lines={s.incomeLines} total={s.totalIncome} />
         <div className="va-divider my-4" />
-        <LineGroup title="Expenses" lines={s.expenseLines} total={s.totalExpenses} />
+        <LineGroup title="Expense breakdown" lines={s.expenseLines} total={s.totalExpenses} />
         <div className="va-divider my-4" />
         <div className="flex items-center justify-between">
           <span className="va-display text-[16.5px]">
-            Net income{" "}
+            Net Income{" "}
             <span className="text-[13px] text-purple-200/55">
               ({s.netIncome >= 0 ? "surplus" : "deficit"})
             </span>
@@ -256,49 +290,19 @@ export function FinancialHealthPanel({ items }: { items: UnifiedTxn[] }) {
             {signed(s.netIncome)}
           </span>
         </div>
-      </Card>
-
-      {/* cash flow */}
-      <Card title="Cash flow" sub="Movement of actual money">
-        <Row label="Opening balance" value={s.openingBalance === null ? null : inr(s.openingBalance)} />
-        <Row label="Total inflows" value={`+${inr(s.totalIncome)}`} color="#6EE7B7" />
-        <Row label="Total outflows" value={`−${inr(s.totalExpenses)}`} color="#FCA5A5" />
-        <div className="va-divider my-3" />
-        {s.openingBalance === null ? (
-          <>
-            <Row
-              label="Net cash movement"
-              value={signed(s.netIncome)}
-              color={s.netIncome >= 0 ? "#6EE7B7" : "#FCA5A5"}
-              strong
-            />
-            <div className="flex items-start gap-2 mt-3">
-              <Info size={13} className="text-purple-300/70 mt-0.5 shrink-0" />
-              <p className="text-[12.5px] text-purple-200/55 leading-relaxed">
-                Opening and closing balance are unavailable — your bank messages didn't include an
-                account balance, so only the movement is shown.
-              </p>
-            </div>
-          </>
-        ) : (
-          <Row
-            label="Closing balance"
-            value={inr(
-              s.closingBalance !== null ? s.closingBalance : s.openingBalance + s.netIncome,
-            )}
-            strong
-          />
-        )}
         {s.transferCount > 0 && (
           <p className="text-[12.5px] text-purple-200/55 leading-relaxed mt-3">
             {s.transferCount} internal transfer{s.transferCount > 1 ? "s" : ""} (
             {inrShort(s.transferTotalIn + s.transferTotalOut)}) excluded — moving your own money
-            isn't income or spending.
+            isn't income or spending. Refunds reduce the category they came from.
           </p>
         )}
       </Card>
 
-      {/* spending analysis */}
+      <Card title="Income vs Expenses chart" sub="Last 12 months">
+        <TrendChart s={s} />
+      </Card>
+
       <Card title="Spending breakdown" sub="Top categories">
         {s.topExpenseCategories.length === 0 ? (
           <p className="text-[14px] text-purple-200/55">No spending in this period.</p>
@@ -313,68 +317,142 @@ export function FinancialHealthPanel({ items }: { items: UnifiedTxn[] }) {
                 color={l.color}
               />
             ))}
-            <div className="pt-2 space-y-1.5">
-              {s.topExpenseCategories.map((l) => (
-                <div key={l.label} className="flex items-center justify-between text-[13.5px]">
-                  <span className="flex items-center gap-2 text-purple-100/85">
-                    <span
-                      className="w-2 h-2 rounded-full"
-                      style={{ background: l.color }}
-                    />
-                    {l.label}
-                  </span>
-                  <span className="va-mono text-purple-200/75">{inr(l.total)}</span>
-                </div>
-              ))}
-            </div>
             <div className="va-divider my-3" />
             <Row label="Highest category" value={s.highestExpenseCategory?.label ?? "—"} />
             <Row label="Essential" value={inr(s.essentialSpend)} />
             <Row label="Discretionary" value={inr(s.discretionarySpend)} />
+            <Row
+              label="Highest expense"
+              value={
+                s.highestExpense
+                  ? `${s.highestExpense.merchant} · ${inr(s.highestExpense.amount)}`
+                  : "—"
+              }
+            />
+            <Row
+              label="Largest income"
+              value={
+                s.largestIncome
+                  ? `${s.largestIncome.merchant} · ${inr(s.largestIncome.amount)}`
+                  : "—"
+              }
+            />
+            <Row label="Transactions" value={String(s.txnCount)} />
           </div>
         )}
       </Card>
+    </div>
+  );
+}
 
-      <Card title="Monthly trend" sub="Income vs expenses, last 12 months">
+/* ────────────────────────── Cash Flow Statement ──────────────────────── */
+
+function CashFlowStatement({ s }: { s: Statements }) {
+  const closing =
+    s.closingBalance !== null
+      ? s.closingBalance
+      : s.openingBalance !== null
+        ? s.openingBalance + s.netIncome
+        : null;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3">
+        <Tile
+          label="Total Cash Inflows"
+          value={inr(s.totalIncome)}
+          icon={ArrowDownLeft}
+          accent="#34D399"
+        />
+        <Tile
+          label="Total Cash Outflows"
+          value={inr(s.totalExpenses)}
+          icon={ArrowUpRight}
+          accent="#F0ABFC"
+        />
+        <Tile
+          label="Net Cash Flow"
+          value={signed(s.netIncome)}
+          icon={TrendingUp}
+          accent={s.netIncome >= 0 ? "#6EE7B7" : "#FCA5A5"}
+        />
+        <Tile
+          label="Closing Balance"
+          value={closing === null ? "Unavailable" : inr(closing)}
+          icon={PiggyBank}
+          accent="#C084FC"
+          small={closing === null}
+        />
+      </div>
+
+      <Card title="Cash Flow Statement" sub={s.range.label}>
+        <Row
+          label="Opening Balance"
+          value={s.openingBalance === null ? null : inr(s.openingBalance)}
+        />
+        <Row label="Total Cash Inflows" value={`+${inr(s.totalIncome)}`} color="#6EE7B7" />
+        <Row label="Total Cash Outflows" value={`−${inr(s.totalExpenses)}`} color="#FCA5A5" />
+        <div className="va-divider my-3" />
+        <Row
+          label="Net Cash Flow"
+          value={signed(s.netIncome)}
+          color={s.netIncome >= 0 ? "#6EE7B7" : "#FCA5A5"}
+          strong
+        />
+        <Row label="Closing Balance" value={closing === null ? null : inr(closing)} strong />
+        {closing === null && (
+          <div className="flex items-start gap-2 mt-3">
+            <Info size={13} className="text-purple-300/70 mt-0.5 shrink-0" />
+            <p className="text-[12.5px] text-purple-200/55 leading-relaxed">
+              Opening Balance and Closing Balance are only shown when your bank messages include an
+              account balance. Until then, only the movement of money is reported.
+            </p>
+          </div>
+        )}
+        {s.transferCount > 0 && (
+          <p className="text-[12.5px] text-purple-200/55 leading-relaxed mt-3">
+            {s.transferCount} internal transfer{s.transferCount > 1 ? "s" : ""} (
+            {inrShort(s.transferTotalIn + s.transferTotalOut)}) excluded from inflows and outflows.
+          </p>
+        )}
+      </Card>
+
+      <Card title="Monthly cash flow" sub="Inflows vs outflows, last 12 months">
         <TrendChart s={s} />
       </Card>
 
       <Card title="Savings trend" sub="Kept vs earned each month">
         <SavingsTrend s={s} />
       </Card>
-
-      {/* monthly report */}
-      <Card title="Financial summary" sub={s.range.label}>
-        <Row label="Income" value={inr(s.totalIncome)} />
-        <Row label="Expenses" value={inr(s.totalExpenses)} />
-        <Row
-          label="Net"
-          value={signed(s.netIncome)}
-          color={s.netIncome >= 0 ? "#6EE7B7" : "#FCA5A5"}
-        />
-        <Row
-          label="Savings rate"
-          value={s.savingsRate === null ? "Not enough data" : `${Math.round(s.savingsRate)}%`}
-        />
-        <div className="va-divider my-3" />
-        <Row label="Top spending category" value={s.highestExpenseCategory?.label ?? "—"} />
-        <Row
-          label="Highest expense"
-          value={
-            s.highestExpense
-              ? `${s.highestExpense.merchant} · ${inr(s.highestExpense.amount)}`
-              : "—"
-          }
-        />
-        <Row
-          label="Largest income"
-          value={
-            s.largestIncome ? `${s.largestIncome.merchant} · ${inr(s.largestIncome.amount)}` : "—"
-          }
-        />
-        <Row label="Transactions" value={String(s.txnCount)} />
-      </Card>
     </div>
+  );
+}
+
+function SegBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-xl py-2.5 text-[13.5px] transition"
+      style={
+        active
+          ? {
+              background: "rgba(192,132,252,0.25)",
+              border: "1px solid rgba(216,180,254,0.5)",
+              color: "#F5F3FF",
+            }
+          : { border: "1px solid transparent", color: "rgba(233,213,255,0.65)" }
+      }
+    >
+      {children}
+    </button>
   );
 }
 

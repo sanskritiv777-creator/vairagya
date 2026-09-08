@@ -37,6 +37,7 @@ import {
   Flame,
   Store,
   ArrowRight,
+  FileText,
 } from "lucide-react";
 import { unify, summarize, groupByPeriod, type UnifiedTxn } from "@/lib/analytics";
 import { CATEGORIES, CATEGORY_ORDER, type CategoryKey } from "@/lib/categorize";
@@ -44,6 +45,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { ilog } from "@/lib/ingest-log";
 import { fetchInsights } from "@/lib/insights-client";
 import { useAutoImport, isNativeAndroidRuntime } from "@/hooks/use-auto-import";
+import {
+  FinancialStatementsCard,
+  FinancialStatementsPanel,
+} from "@/components/financial-health";
 type AutoImport = ReturnType<typeof useAutoImport>;
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -269,6 +274,7 @@ function Dashboard() {
     | "privacy"
     | "help"
     | "feedback"
+    | "statements"
   >("home");
   const [sheet, setSheet] = useState<null | "income" | "expense" | "transfer" | "menu" | "add">(
     null,
@@ -504,6 +510,14 @@ function Dashboard() {
           </div>
         )}
 
+        {/* ── Financial Statements ─────────────────────────────────────── */}
+        <Section
+          title="Financial Statements"
+          action={{ label: "Open", onClick: () => setTab("statements") }}
+        >
+          <FinancialStatementsCard items={items} onOpen={() => setTab("statements")} />
+        </Section>
+
         {/* ── Today's spending ─────────────────────────────────────────── */}
         {summary.todayItems.length > 0 && (
           <Section title="Today's spending" trailing={currency(summary.todaySpend)}>
@@ -647,7 +661,9 @@ function Dashboard() {
                                   ? "Privacy"
                                   : tab === "help"
                                     ? "Help"
-                                    : tab === "feedback"
+                                    : tab === "statements"
+                                      ? "Financial Statements"
+                                      : tab === "feedback"
                                       ? "Feedback"
                                       : "Calculator"
             }
@@ -699,6 +715,7 @@ function Dashboard() {
             {tab === "privacy" && <InfoPanel kind="privacy" />}
             {tab === "help" && <InfoPanel kind="help" />}
             {tab === "feedback" && <InfoPanel kind="feedback" />}
+            {tab === "statements" && <FinancialStatementsPanel items={items} />}
             {tab === "profile" && (
               <ProfilePanel
                 taxRate={taxRate}
@@ -904,6 +921,15 @@ function Dashboard() {
         {sheet === "menu" && (
           <BottomSheet title="Menu" onClose={() => setSheet(null)}>
             {[
+              {
+                icon: FileText,
+                label: "Financial Statements",
+                desc: "Income Statement & Cash Flow",
+                onClick: () => {
+                  setTab("statements");
+                  setSheet(null);
+                },
+              },
               {
                 icon: User,
                 label: "Profile",
