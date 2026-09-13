@@ -343,6 +343,7 @@ function Dashboard() {
         .va-sheet { animation: sheetUp .25s ease-out; }
         @keyframes shimmer { 0%{opacity:.45} 50%{opacity:.9} 100%{opacity:.45} }
         .va-shimmer { animation: shimmer 1.4s ease-in-out infinite; }
+        .va-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
         .va-divider { height:1px; background: linear-gradient(90deg, transparent, rgba(168,85,247,0.35), transparent); }
       `}</style>
 
@@ -1076,8 +1077,11 @@ function BottomSheet({
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div
-        className="va-sheet relative w-full max-w-md rounded-t-3xl p-5 pb-8 va-glass"
-        style={{ background: "linear-gradient(180deg, #15092A 0%, #0B0518 100%)" }}
+        className="va-sheet va-scroll relative w-full max-w-md rounded-t-3xl p-5 va-glass max-h-[88dvh] overflow-y-auto overflow-x-hidden"
+        style={{
+          background: "linear-gradient(180deg, #15092A 0%, #0B0518 100%)",
+          paddingBottom: "calc(2rem + env(safe-area-inset-bottom))",
+        }}
       >
         <div className="mx-auto w-10 h-1 rounded-full bg-purple-400/30 mb-4" />
         <div className="flex items-center justify-between mb-4">
@@ -1108,10 +1112,11 @@ function SecondarySheet({
     <div className="fixed inset-0 z-40 flex items-end justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div
-        className="va-sheet relative w-full max-w-md rounded-t-3xl p-5 pb-28 max-h-[85vh] overflow-y-auto"
+        className="va-sheet va-scroll relative w-full max-w-md rounded-t-3xl p-5 max-h-[92dvh] overflow-y-auto overflow-x-hidden"
         style={{
           background: "linear-gradient(180deg, #15092A 0%, #07050F 100%)",
           border: "1px solid rgba(168,85,247,0.2)",
+          paddingBottom: "calc(7rem + env(safe-area-inset-bottom))",
         }}
       >
         <div className="mx-auto w-10 h-1 rounded-full bg-purple-400/30 mb-4" />
