@@ -619,7 +619,10 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-30 w-[88%] max-w-md">
+        <div
+          className="fixed left-1/2 -translate-x-1/2 z-30 w-[88%] max-w-md"
+          style={{ bottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
+        >
           <div className="va-dock rounded-full px-3 py-2 flex items-center justify-between">
             <DockBtn icon={Home} active={tab === "home"} onClick={() => setTab("home")} />
             <DockBtn icon={Receipt} active={tab === "ledger"} onClick={() => setTab("ledger")} />
