@@ -312,7 +312,7 @@ function Dashboard() {
   }
 
   return (
-    <div className="va-root min-h-screen text-white">
+    <div className="va-root min-h-screen w-full overflow-x-hidden text-white">
       <style>{`
         .va-root {
           background:
