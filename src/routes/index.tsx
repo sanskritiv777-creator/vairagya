@@ -1,9 +1,29 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowRight, Gem, Lock, Sparkles, TrendingUp } from "lucide-react";
+import { ArrowRight, Gem, Loader2, Lock, Sparkles, TrendingUp } from "lucide-react";
 import splashBg from "@/assets/splash-bg.jpg";
+import { supabase } from "@/integrations/supabase/client";
+
+export const ONBOARDED_KEY = "vairagya:onboarded";
 
 export const Route = createFileRoute("/")({
+  ssr: false,
+  head: () => ({
+    meta: [
+      { title: "Vairagya — Clarity in every rupee" },
+      {
+        name: "description",
+        content:
+          "Vairagya helps freelancers track income, set aside tax, and see their real runway automatically.",
+      },
+      { property: "og:title", content: "Vairagya — Clarity in every rupee" },
+      {
+        property: "og:description",
+        content:
+          "Vairagya helps freelancers track income, set aside tax, and see their real runway automatically.",
+      },
+    ],
+  }),
   component: SplashScreen,
 });
 
