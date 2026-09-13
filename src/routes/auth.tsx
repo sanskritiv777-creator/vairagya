@@ -162,7 +162,45 @@ function AuthPage() {
               <ArrowRight size={16} />
             </>}
           </button>
+
+          <div className="flex items-center gap-3 pt-1">
+            <span className="h-px flex-1 bg-purple-400/20" />
+            <span className="text-[11px] uppercase tracking-[0.2em] text-purple-200/45">or</span>
+            <span className="h-px flex-1 bg-purple-400/20" />
+          </div>
+
+          <button
+            type="button"
+            onClick={onGoogle}
+            disabled={googleLoading || loading}
+            className="auth-input w-full rounded-xl py-3.5 text-[14px] font-medium text-purple-50 active:scale-[0.98] transition flex items-center justify-center gap-2.5 disabled:opacity-60"
+          >
+            {googleLoading ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden>
+                <path
+                  fill="#FFC107"
+                  d="M43.6 20.1H24v7.9h11.3C33.7 33 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 7.9 3l5.6-5.6C33.9 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20c11 0 19.4-8 19.4-20 0-1.3-.2-2.6-.8-3.9z"
+                />
+                <path
+                  fill="#FF3D00"
+                  d="M6.3 14.7l6.5 4.8C14.6 15.1 18.9 12 24 12c3.1 0 5.8 1.1 7.9 3l5.6-5.6C33.9 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"
+                />
+                <path
+                  fill="#4CAF50"
+                  d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.3 34.9 26.8 36 24 36c-5.2 0-9.6-3-11.3-8l-6.5 5C9.6 39.6 16.2 44 24 44z"
+                />
+                <path
+                  fill="#1976D2"
+                  d="M43.6 20.1H24v7.9h11.3c-.8 2.3-2.3 4.2-4.1 5.6l6.2 5.2C40.9 36.3 44 30.8 44 24c0-1.3-.2-2.6-.4-3.9z"
+                />
+              </svg>
+            )}
+            Continue with Google
+          </button>
         </form>
+
 
         <button
           onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(null); }}
