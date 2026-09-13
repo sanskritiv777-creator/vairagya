@@ -50,6 +50,7 @@ function AuthPage() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
+      localStorage.setItem(ONBOARDED_KEY, "1");
       navigate({ to: "/app", replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -57,6 +58,25 @@ function AuthPage() {
       setLoading(false);
     }
   }
+
+  async function onGoogle() {
+    setGoogleLoading(true);
+    setError(null);
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
+      if (result.error) throw result.error;
+      if (result.redirected) return;
+      localStorage.setItem(ONBOARDED_KEY, "1");
+      navigate({ to: "/app", replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google sign-in failed");
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
+
 
   return (
     <div className="min-h-screen text-white flex items-center justify-center px-5"
