@@ -346,8 +346,14 @@ function Dashboard() {
         .va-divider { height:1px; background: linear-gradient(90deg, transparent, rgba(168,85,247,0.35), transparent); }
       `}</style>
 
-      <div className="max-w-md mx-auto min-h-screen pb-32 relative">
-        <div className="flex items-center justify-between px-6 pt-6">
+      <div
+        className="max-w-md mx-auto min-h-screen relative"
+        style={{ paddingBottom: "calc(9.5rem + env(safe-area-inset-bottom))" }}
+      >
+        <div
+          className="flex items-center justify-between px-6"
+          style={{ paddingTop: "calc(1.5rem + env(safe-area-inset-top))" }}
+        >
           <button
             onClick={() => setSheet("menu")}
             className="w-10 h-10 rounded-full va-glass flex items-center justify-center active:scale-95 transition"
