@@ -63,18 +63,54 @@ const SLIDES = [
 function SplashScreen() {
   const navigate = useNavigate();
   const [index, setIndex] = useState(0);
+  // "checking" until we know whether this launch should skip onboarding entirely.
+  const [gate, setGate] = useState<"checking" | "show">("checking");
   const slide = SLIDES[index];
 
+  // Returning users never see onboarding again:
+  // signed in -> dashboard, onboarding already done -> login.
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const seen = localStorage.getItem(ONBOARDED_KEY) === "1";
+      const { data } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (data.session) {
+        navigate({ to: "/app", replace: true });
+        return;
+      }
+      if (seen) {
+        navigate({ to: "/auth", replace: true });
+        return;
+      }
+      setGate("show");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
+
+  useEffect(() => {
+    if (gate !== "show") return;
     const id = setInterval(() => setIndex((i) => (i + 1) % SLIDES.length), 5000);
     return () => clearInterval(id);
-  }, []);
+  }, [gate]);
 
   const isLast = index === SLIDES.length - 1;
   const advance = () => {
-    if (isLast) navigate({ to: "/app" });
-    else setIndex((i) => i + 1);
+    if (isLast) {
+      localStorage.setItem(ONBOARDED_KEY, "1");
+      navigate({ to: "/auth", replace: true });
+    } else setIndex((i) => i + 1);
   };
+
+  if (gate === "checking") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#07050F]">
+        <Loader2 className="h-6 w-6 animate-spin text-purple-300" />
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#07050F] text-white">
