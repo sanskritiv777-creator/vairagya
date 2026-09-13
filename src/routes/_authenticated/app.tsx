@@ -419,20 +419,22 @@ function Dashboard() {
         </div>
 
         <div className="px-6 mt-6">
-          <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-4 gap-2.5">
             {[
               { icon: ArrowDownLeft, label: "Income", onClick: () => setSheet("income") },
               { icon: ArrowUpRight, label: "Expense", onClick: () => setSheet("expense") },
-              { icon: Percent, label: "Tax %", onClick: () => setTab("profile") },
-              { icon: CalendarClock, label: `${daysUntilDue}d`, onClick: () => setTab("profile") },
+              { icon: FileBarChart2, label: "Statements", onClick: () => setTab("statements") },
+              { icon: User, label: "Profile", onClick: () => setTab("profile") },
             ].map((q) => (
               <button
                 key={q.label}
                 onClick={q.onClick}
-                className="va-quick rounded-2xl py-3 flex flex-col items-center gap-1.5"
+                className="va-quick rounded-2xl py-3 px-1 flex flex-col items-center gap-1.5 min-w-0"
               >
-                <q.icon size={18} className="text-fuchsia-200" />
-                <span className="text-[12.5px] text-purple-100/80">{q.label}</span>
+                <q.icon size={18} className="text-fuchsia-200 shrink-0" />
+                <span className="text-[11.5px] leading-tight text-purple-100/80 text-center truncate w-full">
+                  {q.label}
+                </span>
               </button>
             ))}
           </div>
