@@ -38,6 +38,7 @@ import {
   Store,
   ArrowRight,
   FileText,
+  FileBarChart2,
 } from "lucide-react";
 import { unify, summarize, groupByPeriod, type UnifiedTxn } from "@/lib/analytics";
 import { CATEGORIES, CATEGORY_ORDER, type CategoryKey } from "@/lib/categorize";
@@ -311,7 +312,7 @@ function Dashboard() {
   }
 
   return (
-    <div className="va-root min-h-screen text-white">
+    <div className="va-root min-h-screen w-full overflow-x-hidden text-white">
       <style>{`
         .va-root {
           background:
@@ -342,11 +343,18 @@ function Dashboard() {
         .va-sheet { animation: sheetUp .25s ease-out; }
         @keyframes shimmer { 0%{opacity:.45} 50%{opacity:.9} 100%{opacity:.45} }
         .va-shimmer { animation: shimmer 1.4s ease-in-out infinite; }
+        .va-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
         .va-divider { height:1px; background: linear-gradient(90deg, transparent, rgba(168,85,247,0.35), transparent); }
       `}</style>
 
-      <div className="max-w-md mx-auto min-h-screen pb-32 relative">
-        <div className="flex items-center justify-between px-6 pt-6">
+      <div
+        className="max-w-md mx-auto min-h-screen relative"
+        style={{ paddingBottom: "calc(9.5rem + env(safe-area-inset-bottom))" }}
+      >
+        <div
+          className="flex items-center justify-between px-6"
+          style={{ paddingTop: "calc(1.5rem + env(safe-area-inset-top))" }}
+        >
           <button
             onClick={() => setSheet("menu")}
             className="w-10 h-10 rounded-full va-glass flex items-center justify-center active:scale-95 transition"
@@ -419,20 +427,22 @@ function Dashboard() {
         </div>
 
         <div className="px-6 mt-6">
-          <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-4 gap-2.5">
             {[
               { icon: ArrowDownLeft, label: "Income", onClick: () => setSheet("income") },
               { icon: ArrowUpRight, label: "Expense", onClick: () => setSheet("expense") },
-              { icon: Percent, label: "Tax %", onClick: () => setTab("profile") },
-              { icon: CalendarClock, label: `${daysUntilDue}d`, onClick: () => setTab("profile") },
+              { icon: FileBarChart2, label: "Statements", onClick: () => setTab("statements") },
+              { icon: User, label: "Profile", onClick: () => setTab("profile") },
             ].map((q) => (
               <button
                 key={q.label}
                 onClick={q.onClick}
-                className="va-quick rounded-2xl py-3 flex flex-col items-center gap-1.5"
+                className="va-quick rounded-2xl py-3 px-1 flex flex-col items-center gap-1.5 min-w-0"
               >
-                <q.icon size={18} className="text-fuchsia-200" />
-                <span className="text-[12.5px] text-purple-100/80">{q.label}</span>
+                <q.icon size={18} className="text-fuchsia-200 shrink-0" />
+                <span className="text-[11.5px] leading-tight text-purple-100/80 text-center truncate w-full">
+                  {q.label}
+                </span>
               </button>
             ))}
           </div>
@@ -610,7 +620,10 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-30 w-[88%] max-w-md">
+        <div
+          className="fixed left-1/2 -translate-x-1/2 z-30 w-[88%] max-w-md"
+          style={{ bottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
+        >
           <div className="va-dock rounded-full px-3 py-2 flex items-center justify-between">
             <DockBtn icon={Home} active={tab === "home"} onClick={() => setTab("home")} />
             <DockBtn icon={Receipt} active={tab === "ledger"} onClick={() => setTab("ledger")} />
@@ -1064,8 +1077,11 @@ function BottomSheet({
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div
-        className="va-sheet relative w-full max-w-md rounded-t-3xl p-5 pb-8 va-glass"
-        style={{ background: "linear-gradient(180deg, #15092A 0%, #0B0518 100%)" }}
+        className="va-sheet va-scroll relative w-full max-w-md rounded-t-3xl p-5 va-glass max-h-[88dvh] overflow-y-auto overflow-x-hidden"
+        style={{
+          background: "linear-gradient(180deg, #15092A 0%, #0B0518 100%)",
+          paddingBottom: "calc(2rem + env(safe-area-inset-bottom))",
+        }}
       >
         <div className="mx-auto w-10 h-1 rounded-full bg-purple-400/30 mb-4" />
         <div className="flex items-center justify-between mb-4">
@@ -1096,10 +1112,11 @@ function SecondarySheet({
     <div className="fixed inset-0 z-40 flex items-end justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div
-        className="va-sheet relative w-full max-w-md rounded-t-3xl p-5 pb-28 max-h-[85vh] overflow-y-auto"
+        className="va-sheet va-scroll relative w-full max-w-md rounded-t-3xl p-5 max-h-[92dvh] overflow-y-auto overflow-x-hidden"
         style={{
           background: "linear-gradient(180deg, #15092A 0%, #07050F 100%)",
           border: "1px solid rgba(168,85,247,0.2)",
+          paddingBottom: "calc(7rem + env(safe-area-inset-bottom))",
         }}
       >
         <div className="mx-auto w-10 h-1 rounded-full bg-purple-400/30 mb-4" />

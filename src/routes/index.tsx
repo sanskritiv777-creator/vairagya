@@ -1,9 +1,29 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowRight, Gem, Lock, Sparkles, TrendingUp } from "lucide-react";
+import { ArrowRight, Gem, Loader2, Lock, Sparkles, TrendingUp } from "lucide-react";
 import splashBg from "@/assets/splash-bg.jpg";
+import { supabase } from "@/integrations/supabase/client";
+
+export const ONBOARDED_KEY = "vairagya:onboarded";
 
 export const Route = createFileRoute("/")({
+  ssr: false,
+  head: () => ({
+    meta: [
+      { title: "Vairagya — Clarity in every rupee" },
+      {
+        name: "description",
+        content:
+          "Vairagya helps freelancers track income, set aside tax, and see their real runway automatically.",
+      },
+      { property: "og:title", content: "Vairagya — Clarity in every rupee" },
+      {
+        property: "og:description",
+        content:
+          "Vairagya helps freelancers track income, set aside tax, and see their real runway automatically.",
+      },
+    ],
+  }),
   component: SplashScreen,
 });
 
@@ -43,18 +63,54 @@ const SLIDES = [
 function SplashScreen() {
   const navigate = useNavigate();
   const [index, setIndex] = useState(0);
+  // "checking" until we know whether this launch should skip onboarding entirely.
+  const [gate, setGate] = useState<"checking" | "show">("checking");
   const slide = SLIDES[index];
 
+  // Returning users never see onboarding again:
+  // signed in -> dashboard, onboarding already done -> login.
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const seen = localStorage.getItem(ONBOARDED_KEY) === "1";
+      const { data } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (data.session) {
+        navigate({ to: "/app", replace: true });
+        return;
+      }
+      if (seen) {
+        navigate({ to: "/auth", replace: true });
+        return;
+      }
+      setGate("show");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
+
+  useEffect(() => {
+    if (gate !== "show") return;
     const id = setInterval(() => setIndex((i) => (i + 1) % SLIDES.length), 5000);
     return () => clearInterval(id);
-  }, []);
+  }, [gate]);
 
   const isLast = index === SLIDES.length - 1;
   const advance = () => {
-    if (isLast) navigate({ to: "/app" });
-    else setIndex((i) => i + 1);
+    if (isLast) {
+      localStorage.setItem(ONBOARDED_KEY, "1");
+      navigate({ to: "/auth", replace: true });
+    } else setIndex((i) => i + 1);
   };
+
+  if (gate === "checking") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#07050F]">
+        <Loader2 className="h-6 w-6 animate-spin text-purple-300" />
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#07050F] text-white">
