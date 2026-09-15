@@ -440,7 +440,7 @@ function Dashboard() {
                 className="va-quick rounded-2xl py-3 px-1 flex flex-col items-center gap-1.5 min-w-0"
               >
                 <q.icon size={18} className="text-fuchsia-200 shrink-0" />
-                <span className="text-[11.5px] leading-tight text-purple-100/80 text-center truncate w-full">
+                <span className="text-[10.5px] leading-tight text-purple-100/80 text-center w-full">
                   {q.label}
                 </span>
               </button>
