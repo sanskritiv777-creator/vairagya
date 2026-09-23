@@ -72,6 +72,20 @@ function SplashScreen() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // If an OAuth redirect lands on "/" (host fallback / masked SPA path),
+      // hand the sign-in params to the callback screen instead of onboarding.
+      const search = new URLSearchParams(window.location.search);
+      const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const hasOAuth = ["code", "access_token", "error", "error_description"].some(
+        (k) => search.has(k) || hash.has(k),
+      );
+      if (hasOAuth) {
+        window.location.replace(
+          `/auth/callback${window.location.search}${window.location.hash}`,
+        );
+        return;
+      }
+
       const seen = localStorage.getItem(ONBOARDED_KEY) === "1";
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
