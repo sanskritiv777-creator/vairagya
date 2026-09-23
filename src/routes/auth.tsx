@@ -64,10 +64,13 @@ function AuthPage() {
     setGoogleLoading(true);
     setError(null);
     try {
+      // redirect_uri must be a real, existing route: /auth/callback finishes
+      // the session exchange and forwards to the dashboard.
       const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+        redirect_uri: `${window.location.origin}/auth/callback`,
       });
       if (result.error) throw result.error;
+      // Full-page redirect: the callback route takes it from here.
       if (result.redirected) return;
       localStorage.setItem(ONBOARDED_KEY, "1");
       navigate({ to: "/app", replace: true });
