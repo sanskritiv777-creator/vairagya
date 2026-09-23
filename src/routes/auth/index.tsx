@@ -2,10 +2,10 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
-import { ONBOARDED_KEY } from "./index";
+import { ONBOARDED_KEY } from "../index";
 import { Loader2, Mail, Lock, User as UserIcon, ArrowRight } from "lucide-react";
 
-export const Route = createFileRoute("/auth")({
+export const Route = createFileRoute("/auth/")({
   ssr: false,
   head: () => ({
     meta: [
