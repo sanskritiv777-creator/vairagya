@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ONBOARDED_KEY } from "../index";
 import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/auth/callback")({
@@ -57,7 +56,7 @@ function AuthCallbackPage() {
         if (!session) throw new Error("Sign-in could not be completed. Please try again.");
 
         if (cancelled) return;
-        localStorage.setItem(ONBOARDED_KEY, "1");
+        
         navigate({ to: "/app", replace: true });
       } catch (err) {
         if (cancelled) return;
