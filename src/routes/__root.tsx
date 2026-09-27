@@ -8,7 +8,10 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
-
+import { App } from "@capacitor/app";
+import { isNative } from "@/native/platform";
+import { completeOAuthCallback } from "@/native/oauth";
+import { ONBOARDED_KEY } from "./index";
 import appCss from "../styles.css?url";
 import appIcon from "../assets/app-icon.png.asset.json";
 import { reportLovableError } from "../lib/lovable-error-reporting";
