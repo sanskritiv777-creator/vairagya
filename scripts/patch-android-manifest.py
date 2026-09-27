@@ -72,7 +72,82 @@ SMS_RECEIVER_BLOCK = """
         </receiver>
 """
 
+def patch_main_activity_deep_link() -> None:
+    """Register the Vairagya OAuth deep link on the generated MainActivity."""
+    candidates = list(
+        (ANDROID / "app/src/main/AndroidManifest.xml").parent.parent.rglob(
+            "AndroidManifest.xml"
+        )
+    )
 
+    for manifest in candidates:
+        if manifest != MANIFEST:
+            continue
+
+        xml = manifest.read_text()
+
+        deep_link_filter = """
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="app.vairagya" />
+            </intent-filter>
+"""
+
+        activity_pattern = re.compile(
+            r'(<activity\\b[^>]*android:name="[^"]*MainActivity"[^>]*)(>)',
+            re.DOTALL,
+        )
+
+        match = activity_pattern.search(xml)
+
+        if not match:
+            print(
+                "[patch-manifest] MainActivity not found; "
+                "deep-link registration skipped"
+            )
+            return
+
+        opening_tag = match.group(1)
+        closing = match.group(2)
+
+        if 'android:launchMode=' not in opening_tag:
+            opening_tag += ' android:launchMode="singleTask"'
+
+        replacement = opening_tag + closing
+
+        xml = (
+            xml[:match.start()]
+            + replacement
+            + xml[match.end():]
+        )
+
+        activity_close_pattern = re.compile(
+            r'(<activity\\b[^>]*android:name="[^"]*MainActivity"[^>]*>)(.*?)(</activity>)',
+            re.DOTALL,
+        )
+
+        activity_match = activity_close_pattern.search(xml)
+
+        if activity_match:
+            activity_body = activity_match.group(2)
+
+            if 'android:scheme="app.vairagya"' not in activity_body:
+                activity_body += deep_link_filter
+
+                xml = (
+                    xml[:activity_match.start(2)]
+                    + activity_body
+                    + xml[activity_match.end(2):]
+                )
+
+        manifest.write_text(xml)
+
+        print(
+            "[patch-manifest] registered app.vairagya:// OAuth deep link"
+        )
+        return
 def patch_manifest() -> None:
     xml = MANIFEST.read_text()
 
@@ -257,10 +332,11 @@ def main() -> int:
         print(f"[patch-manifest] {MANIFEST} not found; skipping.")
         return 0
     patch_manifest()
-    copy_native_sources()
-    patch_build_gradle()
-    patch_root_build_gradle()
-    register_plugins()
+copy_native_sources()
+patch_main_activity_deep_link()
+patch_build_gradle()
+patch_root_build_gradle()
+register_plugins()
     return 0
 
 
