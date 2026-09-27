@@ -11,7 +11,7 @@ import { useEffect, type ReactNode } from "react";
 import { App } from "@capacitor/app";
 import { isNative } from "@/native/platform";
 import { completeOAuthCallback } from "@/native/oauth";
-import { ONBOARDED_KEY } from "./index";
+
 import appCss from "../styles.css?url";
 import appIcon from "../assets/app-icon.png.asset.json";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -130,6 +130,66 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
 
+    useEffect(() => {
+    if (!isNative()) return;
+
+    let disposed = false;
+    let listener: { remove: () => Promise<void> } | undefined;
+
+    const handleOAuthUrl = async (url: string) => {
+      if (!url.startsWith("app.vairagya://")) {
+        return;
+      }
+
+      try {
+        await completeOAuthCallback(url);
+
+        if (disposed) return;
+
+        await router.navigate({
+          to: "/app",
+          replace: true,
+        });
+      } catch (error) {
+        console.error(
+          "[Vairagya OAuth] callback failed:",
+          error,
+        );
+
+        if (!disposed) {
+          await router.navigate({
+            to: "/auth",
+            replace: true,
+          });
+        }
+      }
+    };
+
+    void App.addListener("appUrlOpen", (event) => {
+      void handleOAuthUrl(event.url);
+    }).then((handle) => {
+      listener = handle;
+
+      if (disposed) {
+        void handle.remove();
+      }
+    });
+
+    void App.getLaunchUrl().then((result) => {
+      if (result?.url) {
+        void handleOAuthUrl(result.url);
+      }
+    });
+
+    return () => {
+      disposed = true;
+
+      if (listener) {
+        void listener.remove();
+      }
+    };
+  }, [router]);
+  
   useEffect(() => {
     let cancelled = false;
     import("@/integrations/supabase/client").then(({ supabase }) => {
