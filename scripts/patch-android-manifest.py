@@ -96,7 +96,7 @@ def patch_main_activity_deep_link() -> None:
 """
 
         activity_pattern = re.compile(
-            r'(<activity\\b[^>]*android:name="[^"]*MainActivity"[^>]*)(>)',
+         r'(<activity\b[^>]*android:name="[^"]*MainActivity"[^>]*)(>)',
             re.DOTALL,
         )
 
@@ -124,7 +124,7 @@ def patch_main_activity_deep_link() -> None:
         )
 
         activity_close_pattern = re.compile(
-            r'(<activity\\b[^>]*android:name="[^"]*MainActivity"[^>]*>)(.*?)(</activity>)',
+            r'(<activity\b[^>]*android:name="[^"]*MainActivity"[^>]*>)(.*?)(</activity>)',
             re.DOTALL,
         )
 
@@ -328,6 +328,22 @@ def patch_root_build_gradle() -> None:
 
 
 def main() -> int:
+    if not MANIFEST.exists():
+        print(f"[patch-manifest] {MANIFEST} not found; skipping.")
+        return 0
+
+    patch_manifest()
+    copy_native_sources()
+    patch_main_activity_deep_link()
+    patch_build_gradle()
+    patch_root_build_gradle()
+    register_plugins()
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
     if not MANIFEST.exists():
         print(f"[patch-manifest] {MANIFEST} not found; skipping.")
         return 0
