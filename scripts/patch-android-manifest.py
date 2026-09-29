@@ -344,17 +344,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-    if not MANIFEST.exists():
-        print(f"[patch-manifest] {MANIFEST} not found; skipping.")
-        return 0
-    patch_manifest()
-copy_native_sources()
-patch_main_activity_deep_link()
-patch_build_gradle()
-patch_root_build_gradle()
-register_plugins()
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
