@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      aa_consents: {
+        Row: {
+          accounts: Json
+          created_at: string
+          id: string
+          last_error: string | null
+          last_synced_at: string | null
+          provider: string
+          provider_consent_id: string | null
+          redirect_url: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          accounts?: Json
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          provider: string
+          provider_consent_id?: string | null
+          redirect_url?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          accounts?: Json
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          provider?: string
+          provider_consent_id?: string | null
+          redirect_url?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -76,6 +118,7 @@ export type Database = {
       }
       upi_transactions: {
         Row: {
+          account_ref: string | null
           amount: number
           balance: number | null
           bank: string | null
@@ -87,12 +130,14 @@ export type Database = {
           id: string
           note: string | null
           occurred_at: string
+          provider_txn_id: string | null
           ref_id: string | null
           source: string
           upi_id: string | null
           user_id: string
         }
         Insert: {
+          account_ref?: string | null
           amount: number
           balance?: number | null
           bank?: string | null
@@ -104,12 +149,14 @@ export type Database = {
           id?: string
           note?: string | null
           occurred_at?: string
+          provider_txn_id?: string | null
           ref_id?: string | null
           source?: string
           upi_id?: string | null
           user_id: string
         }
         Update: {
+          account_ref?: string | null
           amount?: number
           balance?: number | null
           bank?: string | null
@@ -121,6 +168,7 @@ export type Database = {
           id?: string
           note?: string | null
           occurred_at?: string
+          provider_txn_id?: string | null
           ref_id?: string | null
           source?: string
           upi_id?: string | null
