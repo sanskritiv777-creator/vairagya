@@ -9,7 +9,7 @@ import {
   startAaConsent,
   syncAaTransactions,
 } from "@/lib/aa.functions";
-import { getOAuthRedirectUri } from "@/native/oauth";
+import { isNative } from "@/native/platform";
 import type { AaUiState } from "@/lib/aa/types";
 
 const btn =
@@ -43,7 +43,7 @@ export function BankConnectPanel() {
 
   const connect = () =>
     run("connect", async () => {
-      const redirectUrl = getOAuthRedirectUri().replace("/auth/callback", "/app");
+      const redirectUrl = isNative() ? "app.vairagya://aa/callback" : `${window.location.origin}/app`;
       const { redirectUrl: url } = await start({ data: { redirectUrl } });
       window.location.href = url;
     });

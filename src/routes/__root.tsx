@@ -140,6 +140,11 @@ function RootComponent() {
       if (!url.startsWith("app.vairagya://")) {
         return;
       }
+      // Account Aggregator consent return: just go back to the dashboard.
+      if (url.startsWith("app.vairagya://aa/")) {
+        if (!disposed) await router.navigate({ to: "/app", replace: true });
+        return;
+      }
 
       try {
         await completeOAuthCallback(url);

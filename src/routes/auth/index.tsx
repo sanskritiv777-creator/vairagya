@@ -1,4 +1,5 @@
 import { getOAuthRedirectUri } from "@/native/oauth";
+import { isNative } from "@/native/platform";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -65,11 +66,22 @@ function AuthPage() {
     setGoogleLoading(true);
     setError(null);
     try {
-      // redirect_uri must be a real, existing route: /auth/callback finishes
-      // the session exchange and forwards to the dashboard.
+      if (isNative()) {
+        // Native Android: Supabase OAuth in the system browser, returning via
+        // the app.vairagya://auth/callback deep link (handled in __root).
+        const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: getOAuthRedirectUri(), skipBrowserRedirect: true },
+        });
+        if (oauthErr) throw oauthErr;
+        if (!data?.url) throw new Error("Google sign-in URL was not returned.");
+        window.location.href = data.url;
+        return;
+      }
+      // Web: /auth/callback finishes the session exchange.
       const result = await lovable.auth.signInWithOAuth("google", {
-  redirect_uri: getOAuthRedirectUri(),
-});
+        redirect_uri: getOAuthRedirectUri(),
+      });
       if (result.error) throw result.error;
       // Full-page redirect: the callback route takes it from here.
       if (result.redirected) return;
