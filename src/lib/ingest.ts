@@ -14,6 +14,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { ilog } from "./ingest-log";
 import type { ParsedTxn } from "./txn-parser";
+import { filterDuplicates, AA_DATE_ONLY_WINDOW_MS } from "./txn-dedupe";
 
 export type IngestResult = { inserted: number; skipped: number };
 
@@ -67,70 +68,29 @@ const CHUNK = 200;
  * amount + direction match and they happened within a few minutes of each
  * other — never merely because the amount matches.
  */
-const WINDOW_MS = 5 * 60 * 1000;
-
-function fingerprint(r: { amount: number; direction: string }) {
-  return `${r.direction}|${r.amount.toFixed(2)}`;
-}
-
 async function dropCrossSourceDuplicates(user_id: string, rows: UpiRow[]): Promise<UpiRow[]> {
   if (rows.length === 0) return rows;
-
-  // 1) Collapse inside the incoming batch, preferring the entry with a ref id.
-  const batch: UpiRow[] = [];
-  for (const r of [...rows].sort((a, b) => (a.ref_id ? -1 : 0) - (b.ref_id ? -1 : 0))) {
-    const t = new Date(r.occurred_at).getTime();
-    const clash = batch.find(
-      (b) =>
-        fingerprint(b) === fingerprint(r) &&
-        Math.abs(new Date(b.occurred_at).getTime() - t) <= WINDOW_MS,
-    );
-    if (clash) continue;
-    batch.push(r);
-  }
-
-  // 2) Compare against rows already stored inside the same time window.
-  const times = batch.map((r) => new Date(r.occurred_at).getTime());
-  const from = new Date(Math.min(...times) - WINDOW_MS).toISOString();
-  const to = new Date(Math.max(...times) + WINDOW_MS).toISOString();
-
+  const times = rows.map((r) => new Date(r.occurred_at).getTime());
+  const from = new Date(Math.min(...times) - AA_DATE_ONLY_WINDOW_MS).toISOString();
+  const to = new Date(Math.max(...times) + AA_DATE_ONLY_WINDOW_MS).toISOString();
   try {
     const { data, error } = await supabase
       .from("upi_transactions")
-      .select("amount,direction,occurred_at,ref_id")
+      .select("amount,direction,occurred_at,ref_id,provider_txn_id,account_ref,source")
       .eq("user_id", user_id)
       .gte("occurred_at", from)
       .lte("occurred_at", to);
-
-    if (error || !data?.length) return batch;
-
-    const existing = data.map((d) => ({
-      amount: Number(d.amount),
-      direction: String(d.direction),
-      time: new Date(d.occurred_at as string).getTime(),
-      ref_id: d.ref_id ? String(d.ref_id) : null,
-    }));
-
-    const kept = batch.filter((r) => {
-      const t = new Date(r.occurred_at).getTime();
-      const dup = existing.some(
-        (e) =>
-          (r.ref_id && e.ref_id && r.ref_id.toUpperCase() === e.ref_id.toUpperCase()) ||
-          (fingerprint(e) === fingerprint(r) && Math.abs(e.time - t) <= WINDOW_MS),
-      );
-      return !dup;
-    });
-
-    if (kept.length !== batch.length) {
-      ilog("db", `cross-source dedupe: skipped ${batch.length - kept.length} already-known txn(s)`);
+    const existing = error || !data ? [] : data.map((d) => ({ ...d, amount: Number(d.amount) }));
+    const kept = filterDuplicates(rows, existing as never);
+    if (kept.length !== rows.length) {
+      ilog("db", `cross-source dedupe: skipped ${rows.length - kept.length} already-known txn(s)`);
     }
     return kept;
   } catch (e) {
     ilog("db", `cross-source dedupe check skipped: ${describeDbError(e)}`);
-    return batch;
+    return filterDuplicates(rows, []);
   }
 }
-
 
 export async function ingestTransactions(parsed: ParsedTxn[]): Promise<IngestResult> {
   if (parsed.length === 0) return { inserted: 0, skipped: 0 };
