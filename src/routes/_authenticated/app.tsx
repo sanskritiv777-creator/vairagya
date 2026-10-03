@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { BankConnectPanel } from "@/components/bank-connect";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -38,6 +39,7 @@ import {
   Store,
   ArrowRight,
   FileText,
+  Landmark,
   FileBarChart2,
 } from "lucide-react";
 import { unify, summarize, groupByPeriod, type UnifiedTxn } from "@/lib/analytics";
@@ -276,6 +278,7 @@ function Dashboard() {
     | "help"
     | "feedback"
     | "statements"
+    | "bank"
   >("home");
   const [sheet, setSheet] = useState<null | "income" | "expense" | "transfer" | "menu" | "add">(
     null,
@@ -676,12 +679,15 @@ function Dashboard() {
                                     ? "Help"
                                     : tab === "statements"
                                       ? "Financial Statements"
+                                      : tab === "bank"
+                                      ? "Connect bank account"
                                       : tab === "feedback"
                                       ? "Feedback"
                                       : "Calculator"
             }
             onClose={() => setTab("home")}
           >
+            {tab === "bank" && <BankConnectPanel />}
             {tab === "ledger" && (
               <LedgerList
                 items={income.map((i) => ({
@@ -934,6 +940,15 @@ function Dashboard() {
         {sheet === "menu" && (
           <BottomSheet title="Menu" onClose={() => setSheet(null)}>
             {[
+              {
+                icon: Landmark,
+                label: "Connect bank account",
+                desc: "Account Aggregator · Sync transactions",
+                onClick: () => {
+                  setTab("bank");
+                  setSheet(null);
+                },
+              },
               {
                 icon: FileText,
                 label: "Financial Statements",
