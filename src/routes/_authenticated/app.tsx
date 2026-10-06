@@ -35,8 +35,6 @@ import {
   HelpCircle,
   MessageSquare,
   Settings,
-  Flame,
-  Store,
   ArrowRight,
   FileText,
   Landmark,
@@ -2284,42 +2282,6 @@ function Section({
   );
 }
 
-function StatCard({
-  label,
-  value,
-  hint,
-  icon: Icon,
-  accent,
-  small,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
-  accent: string;
-  small?: boolean;
-}) {
-  return (
-    <div className="va-glass rounded-2xl px-4 py-4">
-      <div className="flex items-center gap-2">
-        <span
-          className="w-7 h-7 rounded-lg flex items-center justify-center"
-          style={{ background: accent + "22" }}
-        >
-          <Icon size={14} style={{ color: accent }} />
-        </span>
-        <span className="text-[13px] text-purple-200/65">{label}</span>
-      </div>
-      <div
-        className={`va-display mt-2.5 text-white truncate ${small ? "text-[19px]" : "text-[23px]"}`}
-      >
-        {value}
-      </div>
-      <div className="text-[12.5px] text-purple-200/45 mt-0.5 truncate">{hint}</div>
-    </div>
-  );
-}
-
 function SkeletonRow() {
   return (
     <div className="va-glass rounded-2xl px-4 py-4 flex items-center gap-3.5 overflow-hidden">
@@ -2336,29 +2298,45 @@ function SkeletonRow() {
 const TxnRow = memo(function TxnRow({
   t,
   onDelete,
+  onOpen,
+  compact = false,
 }: {
   t: UnifiedTxn;
   onDelete?: (t: UnifiedTxn) => void;
+  onOpen?: () => void;
+  compact?: boolean;
 }) {
   const Icon = t.category.icon;
   const positive = t.direction === "credit";
   return (
-    <div className="flex items-center gap-3.5 px-4 py-4">
+    <div
+      className={`flex items-center gap-3.5 px-4 ${compact ? "py-3.5" : "py-4"} ${onOpen ? "cursor-pointer transition-colors active:bg-purple-400/[0.06]" : ""}`}
+      role={onOpen ? "button" : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (!onOpen || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        onOpen();
+      }}
+    >
       <div
-        className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
+        className={`${compact ? "w-10 h-10 rounded-xl" : "w-11 h-11 rounded-2xl"} flex items-center justify-center shrink-0`}
         style={{ background: t.category.tint }}
       >
-        <Icon size={18} style={{ color: t.category.color }} />
+        <Icon size={compact ? 17 : 18} style={{ color: t.category.color }} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-[15.5px] text-purple-50 truncate">{t.merchant}</div>
-        <div className="text-[12.5px] text-purple-200/50 truncate mt-0.5">
-          <span style={{ color: t.category.color + "cc" }}>{t.category.label}</span>
-          {" · "}
-          {fmtDate(t.at)}, {fmtTime(t.at)}
-          {" · "}
-          {t.method}
-        </div>
+        {!compact && (
+          <div className="text-[12.5px] text-purple-200/50 truncate mt-0.5">
+            <span style={{ color: t.category.color + "cc" }}>{t.category.label}</span>
+            {" · "}
+            {fmtDate(t.at)}, {fmtTime(t.at)}
+            {" · "}
+            {t.method}
+          </div>
+        )}
       </div>
       <div className="text-right shrink-0">
         <div
@@ -2373,7 +2351,10 @@ const TxnRow = memo(function TxnRow({
       </div>
       {onDelete && (
         <button
-          onClick={() => onDelete(t)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete(t);
+          }}
           className="w-7 h-7 rounded-lg flex items-center justify-center text-purple-200/40 hover:text-rose-300 hover:bg-rose-500/10 transition shrink-0"
           aria-label="Delete"
         >
