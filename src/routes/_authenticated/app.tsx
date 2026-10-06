@@ -35,8 +35,6 @@ import {
   HelpCircle,
   MessageSquare,
   Settings,
-  Flame,
-  Store,
   ArrowRight,
   FileText,
   Landmark,
@@ -48,10 +46,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ilog } from "@/lib/ingest-log";
 import { fetchInsights } from "@/lib/insights-client";
 import { useAutoImport, isNativeAndroidRuntime } from "@/hooks/use-auto-import";
-import {
-  FinancialStatementsCard,
-  FinancialStatementsPanel,
-} from "@/components/financial-health";
+import { FinancialStatementsPanel } from "@/components/financial-health";
 type AutoImport = ReturnType<typeof useAutoImport>;
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -283,6 +278,7 @@ function Dashboard() {
   const [sheet, setSheet] = useState<null | "income" | "expense" | "transfer" | "menu" | "add">(
     null,
   );
+  const [homePeriod, setHomePeriod] = useState<"today" | "week" | "month">("today");
   const [newIncome, setNewIncome] = useState({ source: "", amount: "" });
   const [newExpense, setNewExpense] = useState({ label: "", amount: "", category: "Software" });
   const [newTransfer, setNewTransfer] = useState({ label: "", amount: "" });
@@ -296,7 +292,15 @@ function Dashboard() {
 
   const items = useMemo(() => unify(txns, upiTxns as never), [txns, upiTxns]);
   const summary = useMemo(() => summarize(items), [items]);
-  const recent = useMemo(() => items.slice(0, 6), [items]);
+  const recent = useMemo(() => items.slice(0, 3), [items]);
+  const selectedSpend =
+    homePeriod === "today"
+      ? summary.todaySpend
+      : homePeriod === "week"
+        ? summary.weekSpend
+        : summary.monthSpend;
+  const spendingScale = Math.max(summary.todaySpend, summary.weekSpend, summary.monthSpend, 1);
+  const spendingProgress = Math.min(100, (selectedSpend / spendingScale) * 100);
 
   const userName = profile?.display_name ?? "there";
 
@@ -390,43 +394,23 @@ function Dashboard() {
         <div className="px-6 pt-6">
           <p className="text-purple-200/70 text-[14.5px]">{greeting},</p>
           <h1 className="va-display text-3xl mt-1 truncate">{userName}</h1>
-          <p className="va-display text-2xl mt-3 leading-snug">
-            You're carrying <span className="text-fuchsia-300">{runwayMonths} months</span>
-            <br />
-            of runway.
-          </p>
         </div>
 
         <div className="px-6 mt-6">
-          <div className="va-balance-card rounded-3xl p-5 relative overflow-hidden">
-            <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-fuchsia-400/30 blur-3xl va-ring" />
-            <div className="flex items-center justify-between relative gap-3">
-              <div className="min-w-0">
-                <div className="text-purple-200/80 text-[13.5px] tracking-wide">Safe to spend</div>
-                <div className="va-display text-[34px] mt-1 leading-none">
-                  {currency(safeToSpend)}
-                </div>
-              </div>
-              <div className="va-chip rounded-full px-3 py-1 text-[12.5px] text-purple-100 shrink-0">
-                {taxRate}% set aside
-              </div>
+          <button
+            onClick={() => setTab("statements")}
+            className="va-balance-card w-full rounded-3xl px-5 py-6 text-left active:scale-[0.99] transition-transform"
+            aria-label="Open financial statements"
+          >
+            <div className="text-purple-200/75 text-[13.5px]">Safe to spend</div>
+            <div className="va-display text-[38px] mt-1.5 leading-none">{currency(safeToSpend)}</div>
+            <div className="mt-5 flex items-center gap-2.5 text-[13px] text-purple-100/70">
+              <span>{runwayMonths} months runway</span>
+              <span aria-hidden="true" className="h-1 w-1 rounded-full bg-purple-200/40" />
+              <span>{taxRate}% set aside</span>
+              <ChevronRight size={15} className="ml-auto text-purple-200/50" />
             </div>
-            <div className="va-divider my-4 opacity-60" />
-            <div className="flex items-center justify-between text-[13.5px] relative">
-              <div>
-                <div className="text-purple-200/60">Earned</div>
-                <div className="va-mono text-purple-50 mt-0.5">{currencyShort(totalIncome)}</div>
-              </div>
-              <div>
-                <div className="text-purple-200/60">Spent</div>
-                <div className="va-mono text-purple-50 mt-0.5">{currencyShort(totalExpenses)}</div>
-              </div>
-              <div>
-                <div className="text-purple-200/60">Tax jar</div>
-                <div className="va-mono text-fuchsia-200 mt-0.5">{currencyShort(setAside)}</div>
-              </div>
-            </div>
-          </div>
+          </button>
         </div>
 
         <div className="px-6 mt-6">
@@ -451,107 +435,52 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* ── Auto-derived money snapshot ─────────────────────────────── */}
-        <div className="px-6 mt-8 grid grid-cols-2 gap-3.5">
-          <StatCard
-            label="Today"
-            value={currencyShort(summary.todaySpend)}
-            hint="spent"
-            icon={Flame}
-            accent="#FDBA74"
-          />
-          <StatCard
-            label="This week"
-            value={currencyShort(summary.weekSpend)}
-            hint="spent"
-            icon={CalendarClock}
-            accent="#F0ABFC"
-          />
-          <StatCard
-            label="This month"
-            value={currencyShort(summary.monthSpend)}
-            hint="spent"
-            icon={PieChart}
-            accent="#C4B5FD"
-          />
-          <StatCard
-            label="Received"
-            value={currencyShort(summary.monthReceived)}
-            hint="this month"
-            icon={ArrowDownLeft}
-            accent="#34D399"
-          />
-        </div>
-
-        <div className="px-6 mt-3.5 grid grid-cols-2 gap-3.5">
-          <StatCard
-            label="Net cashflow"
-            value={`${summary.net >= 0 ? "+" : "−"}${currencyShort(Math.abs(summary.net))}`}
-            hint="all time"
-            icon={TrendingUp}
-            accent={summary.net >= 0 ? "#6EE7B7" : "#FCA5A5"}
-          />
-          <StatCard
-            label="Top merchant"
-            value={summary.topMerchant?.name ?? "—"}
-            hint={summary.topMerchant ? currencyShort(summary.topMerchant.total) : "no data yet"}
-            icon={Store}
-            accent="#7DD3FC"
-            small
-          />
-        </div>
-
-        {summary.highestExpense && (
-          <div className="px-6 mt-3.5">
-            <div className="va-glass rounded-2xl px-5 py-4 flex items-center gap-3.5">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: "rgba(252,165,165,0.14)" }}
+        {/* ── Compact spending overview ────────────────────────────────── */}
+        <div className="px-6 mt-8">
+          <div className="grid grid-cols-3 rounded-xl bg-purple-400/[0.07] p-1" role="tablist">
+            {(
+              [
+                ["today", "Today"],
+                ["week", "Week"],
+                ["month", "Month"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                role="tab"
+                aria-selected={homePeriod === value}
+                onClick={() => setHomePeriod(value)}
+                className={`rounded-lg py-2 text-[13.5px] transition-all active:scale-[0.98] ${
+                  homePeriod === value
+                    ? "bg-purple-400/20 text-purple-50 shadow-sm"
+                    : "text-purple-200/55"
+                }`}
               >
-                <ArrowUpRight size={18} style={{ color: "#FCA5A5" }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[13.5px] text-purple-200/60">Highest expense</div>
-                <div className="text-[15.5px] text-purple-50 truncate">
-                  {summary.highestExpense.merchant}
-                </div>
-              </div>
-              <div className="va-mono text-[15.5px] text-fuchsia-200 shrink-0">
-                {currency(summary.highestExpense.amount)}
-              </div>
-            </div>
+                {label}
+              </button>
+            ))}
           </div>
-        )}
 
-        {/* ── Financial Statements ─────────────────────────────────────── */}
-        <Section
-          title="Financial Statements"
-          action={{ label: "Open", onClick: () => setTab("statements") }}
-        >
-          <FinancialStatementsCard items={items} onOpen={() => setTab("statements")} />
-        </Section>
-
-        {/* ── Today's spending ─────────────────────────────────────────── */}
-        {summary.todayItems.length > 0 && (
-          <Section title="Today's spending" trailing={currency(summary.todaySpend)}>
-            <div className="va-glass rounded-3xl divide-y divide-purple-500/10 overflow-hidden">
-              {summary.todayItems.slice(0, 5).map((t) => (
-                <TxnRow key={t.key} t={t} />
-              ))}
+          <button
+            onClick={() => setTab("expenses")}
+            className="mt-5 w-full text-left active:scale-[0.99] transition-transform"
+            aria-label="Open spending details"
+          >
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-4">
+              <div className="min-w-0">
+                <div className="va-display text-[20px]">Spending</div>
+                <div className="va-display mt-1 text-[31px] transition-opacity">{currency(selectedSpend)}</div>
+              </div>
+              <ChevronRight size={17} className="mb-2 text-purple-200/45 shrink-0" />
             </div>
-          </Section>
-        )}
-
-        {/* ── Money received ───────────────────────────────────────────── */}
-        {summary.receivedItems.length > 0 && (
-          <Section title="Received" trailing={currency(summary.received)}>
-            <div className="va-glass rounded-3xl divide-y divide-purple-500/10 overflow-hidden">
-              {summary.receivedItems.slice(0, 4).map((t) => (
-                <TxnRow key={t.key} t={t} />
-              ))}
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-purple-400/10">
+              <div
+                className="h-full rounded-full bg-fuchsia-300/70 transition-[width] duration-300 ease-out"
+                style={{ width: `${spendingProgress}%` }}
+              />
             </div>
-          </Section>
-        )}
+          </button>
+        </div>
 
         {/* ── Recent activity ─────────────────────────────────────────── */}
         <Section
@@ -603,25 +532,12 @@ function Dashboard() {
             </div>
           ) : (
             <div className="va-glass rounded-3xl divide-y divide-purple-500/10 overflow-hidden">
-              {recent.map((t) => (
-                <TxnRow key={t.key} t={t} />
+                {recent.map((t) => (
+                  <TxnRow key={t.key} t={t} onOpen={() => setTab("all")} compact />
               ))}
             </div>
           )}
         </Section>
-
-        <div className="px-6 mt-5">
-          <div className="va-glass rounded-2xl p-4 flex items-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-fuchsia-500/20 flex items-center justify-center text-fuchsia-200 shrink-0">
-              <Sparkles size={15} />
-            </div>
-            <p className="text-[14px] leading-relaxed text-purple-100/80">
-              Next quarterly estimate due in{" "}
-              <span className="text-fuchsia-300 font-medium">{daysUntilDue} days</span>. Your tax
-              jar already covers <span className="text-white">{currencyShort(setAside)}</span>.
-            </p>
-          </div>
-        </div>
 
         <div
           className="fixed left-1/2 -translate-x-1/2 z-30 w-[88%] max-w-md"
@@ -2366,42 +2282,6 @@ function Section({
   );
 }
 
-function StatCard({
-  label,
-  value,
-  hint,
-  icon: Icon,
-  accent,
-  small,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
-  accent: string;
-  small?: boolean;
-}) {
-  return (
-    <div className="va-glass rounded-2xl px-4 py-4">
-      <div className="flex items-center gap-2">
-        <span
-          className="w-7 h-7 rounded-lg flex items-center justify-center"
-          style={{ background: accent + "22" }}
-        >
-          <Icon size={14} style={{ color: accent }} />
-        </span>
-        <span className="text-[13px] text-purple-200/65">{label}</span>
-      </div>
-      <div
-        className={`va-display mt-2.5 text-white truncate ${small ? "text-[19px]" : "text-[23px]"}`}
-      >
-        {value}
-      </div>
-      <div className="text-[12.5px] text-purple-200/45 mt-0.5 truncate">{hint}</div>
-    </div>
-  );
-}
-
 function SkeletonRow() {
   return (
     <div className="va-glass rounded-2xl px-4 py-4 flex items-center gap-3.5 overflow-hidden">
@@ -2418,29 +2298,45 @@ function SkeletonRow() {
 const TxnRow = memo(function TxnRow({
   t,
   onDelete,
+  onOpen,
+  compact = false,
 }: {
   t: UnifiedTxn;
   onDelete?: (t: UnifiedTxn) => void;
+  onOpen?: () => void;
+  compact?: boolean;
 }) {
   const Icon = t.category.icon;
   const positive = t.direction === "credit";
   return (
-    <div className="flex items-center gap-3.5 px-4 py-4">
+    <div
+      className={`flex items-center gap-3.5 px-4 ${compact ? "py-3.5" : "py-4"} ${onOpen ? "cursor-pointer transition-colors active:bg-purple-400/[0.06]" : ""}`}
+      role={onOpen ? "button" : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (!onOpen || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        onOpen();
+      }}
+    >
       <div
-        className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
+        className={`${compact ? "w-10 h-10 rounded-xl" : "w-11 h-11 rounded-2xl"} flex items-center justify-center shrink-0`}
         style={{ background: t.category.tint }}
       >
-        <Icon size={18} style={{ color: t.category.color }} />
+        <Icon size={compact ? 17 : 18} style={{ color: t.category.color }} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-[15.5px] text-purple-50 truncate">{t.merchant}</div>
-        <div className="text-[12.5px] text-purple-200/50 truncate mt-0.5">
-          <span style={{ color: t.category.color + "cc" }}>{t.category.label}</span>
-          {" · "}
-          {fmtDate(t.at)}, {fmtTime(t.at)}
-          {" · "}
-          {t.method}
-        </div>
+        {!compact && (
+          <div className="text-[12.5px] text-purple-200/50 truncate mt-0.5">
+            <span style={{ color: t.category.color + "cc" }}>{t.category.label}</span>
+            {" · "}
+            {fmtDate(t.at)}, {fmtTime(t.at)}
+            {" · "}
+            {t.method}
+          </div>
+        )}
       </div>
       <div className="text-right shrink-0">
         <div
@@ -2455,7 +2351,10 @@ const TxnRow = memo(function TxnRow({
       </div>
       {onDelete && (
         <button
-          onClick={() => onDelete(t)}
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete(t);
+          }}
           className="w-7 h-7 rounded-lg flex items-center justify-center text-purple-200/40 hover:text-rose-300 hover:bg-rose-500/10 transition shrink-0"
           aria-label="Delete"
         >
