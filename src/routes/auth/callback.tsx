@@ -71,31 +71,26 @@ function AuthCallbackPage() {
 
   return (
     <div
-      className="min-h-screen text-white flex items-center justify-center px-5"
-      style={{
-        background:
-          "radial-gradient(900px 500px at 80% -10%, rgba(168,85,247,0.35), transparent 60%), radial-gradient(700px 500px at -20% 110%, rgba(91,33,182,0.45), transparent 60%), #07050F",
-        fontFamily: "'Space Grotesk', system-ui, sans-serif",
-      }}
+      className="flex min-h-screen items-center justify-center bg-background px-5 text-foreground"
     >
       <div className="w-full max-w-md text-center">
         {error ? (
           <>
             <h1 className="text-2xl font-semibold">Sign-in didn't complete</h1>
-            <p className="mt-3 text-[13px] text-rose-300 bg-rose-500/10 border border-rose-400/20 rounded-xl px-4 py-3">
+            <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
               {error}
             </p>
             <Link
               to="/auth"
-              className="mt-6 inline-flex items-center justify-center rounded-xl bg-purple-500 px-5 py-3 text-[14px] font-semibold text-white transition hover:bg-purple-400"
+              className="mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-3 text-[14px] font-semibold text-primary-foreground transition"
             >
               Back to sign in
             </Link>
           </>
         ) : (
           <>
-            <Loader2 className="mx-auto h-7 w-7 animate-spin text-purple-300" />
-            <p className="mt-4 text-[14px] text-purple-200/70">Finishing Google sign-in…</p>
+            <Loader2 className="mx-auto h-7 w-7 animate-spin text-muted-foreground" />
+            <p className="mt-4 text-[14px] text-muted-foreground">Finishing Google sign-in…</p>
           </>
         )}
       </div>

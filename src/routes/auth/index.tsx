@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { ONBOARDED_KEY } from "../index";
 import { Loader2, Mail, Lock, User as UserIcon, ArrowRight } from "lucide-react";
+import { VairagyaLogo } from "@/components/vairagya-logo";
 
 export const Route = createFileRoute("/auth/")({
   ssr: false,
@@ -96,38 +97,24 @@ function AuthPage() {
 
 
   return (
-    <div className="min-h-screen text-white flex items-center justify-center px-5"
-      style={{
-        background:
-          "radial-gradient(900px 500px at 80% -10%, rgba(168,85,247,0.35), transparent 60%), radial-gradient(700px 500px at -20% 110%, rgba(91,33,182,0.45), transparent 60%), #07050F",
-        fontFamily: "'Space Grotesk', system-ui, sans-serif",
-      }}
-    >
-      <style>{`
-        .auth-glass { background: linear-gradient(150deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border: 1px solid rgba(168,85,247,0.22); backdrop-filter: blur(12px); }
-        .auth-input { background: rgba(255,255,255,0.04); border: 1px solid rgba(168,85,247,0.25); color: #F5F3FF; }
-        .auth-input::placeholder { color: rgba(216,180,254,0.5); }
-        .auth-input:focus { outline: none; border-color: #C084FC; box-shadow: 0 0 0 3px rgba(192,132,252,0.18); }
-        .auth-fab { background: radial-gradient(circle at 30% 20%, #D8B4FE, #A855F7 55%, #6B21A8); box-shadow: 0 18px 40px -12px rgba(168,85,247,0.6), inset 0 1px 0 rgba(255,255,255,0.4); }
-        .auth-display { font-family: 'Bricolage Grotesque', serif; font-weight: 600; letter-spacing: -0.02em; }
-      `}</style>
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-6 py-[calc(2rem+env(safe-area-inset-top))] text-foreground">
       <div className="w-full max-w-md">
-        <div className="text-center mb-6">
-          <div className="text-[11px] uppercase tracking-[0.3em] text-purple-200/60">Varaigya · v1</div>
-          <h1 className="auth-display text-3xl mt-3">
+        <div className="mb-9"><VairagyaLogo /></div>
+        <div className="mb-7">
+          <h1 className="text-3xl font-semibold">
             {mode === "signin" ? "Welcome back." : "Start tracking."}
           </h1>
-          <p className="text-purple-200/70 text-[13px] mt-2">
+          <p className="mt-2 text-[14px] leading-6 text-muted-foreground">
             {mode === "signin"
               ? "Sign in to see what's actually yours to spend."
               : "Know your tax-safe income from day one."}
           </p>
         </div>
 
-        <form onSubmit={onSubmit} className="auth-glass rounded-3xl p-5 space-y-3">
+        <form onSubmit={onSubmit} className="space-y-3">
           {mode === "signup" && (
-            <label className="flex items-center gap-3 auth-input rounded-xl px-4 py-3">
-              <UserIcon size={16} className="text-fuchsia-300" />
+            <label className="flex items-center gap-3 rounded-lg border border-input bg-card px-4 py-3.5 focus-within:border-foreground/50">
+              <UserIcon size={16} className="text-muted-foreground" />
               <input
                 className="bg-transparent outline-none flex-1 text-[14px]"
                 placeholder="Your name"
@@ -136,8 +123,8 @@ function AuthPage() {
               />
             </label>
           )}
-          <label className="flex items-center gap-3 auth-input rounded-xl px-4 py-3">
-            <Mail size={16} className="text-fuchsia-300" />
+          <label className="flex items-center gap-3 rounded-lg border border-input bg-card px-4 py-3.5 focus-within:border-foreground/50">
+            <Mail size={16} className="text-muted-foreground" />
             <input
               type="email"
               required
@@ -148,8 +135,8 @@ function AuthPage() {
               onChange={(e) => setEmail(e.target.value)}
             />
           </label>
-          <label className="flex items-center gap-3 auth-input rounded-xl px-4 py-3">
-            <Lock size={16} className="text-fuchsia-300" />
+          <label className="flex items-center gap-3 rounded-lg border border-input bg-card px-4 py-3.5 focus-within:border-foreground/50">
+            <Lock size={16} className="text-muted-foreground" />
             <input
               type="password"
               required
@@ -163,7 +150,7 @@ function AuthPage() {
           </label>
 
           {error && (
-            <div className="text-[12.5px] text-rose-300 bg-rose-500/10 border border-rose-400/20 rounded-xl px-3 py-2">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-[12.5px] text-destructive">
               {error}
             </div>
           )}
@@ -171,7 +158,7 @@ function AuthPage() {
           <button
             type="submit"
             disabled={loading}
-            className="auth-fab w-full rounded-xl py-3.5 text-[14px] font-semibold text-white active:scale-[0.98] transition flex items-center justify-center gap-2 disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-3.5 text-[14px] font-semibold text-primary-foreground transition active:scale-[0.98] disabled:opacity-60"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : <>
               {mode === "signin" ? "Sign in" : "Create account"}
@@ -180,16 +167,16 @@ function AuthPage() {
           </button>
 
           <div className="flex items-center gap-3 pt-1">
-            <span className="h-px flex-1 bg-purple-400/20" />
-            <span className="text-[11px] uppercase tracking-[0.2em] text-purple-200/45">or</span>
-            <span className="h-px flex-1 bg-purple-400/20" />
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">or</span>
+            <span className="h-px flex-1 bg-border" />
           </div>
 
           <button
             type="button"
             onClick={onGoogle}
             disabled={googleLoading || loading}
-            className="auth-input w-full rounded-xl py-3.5 text-[14px] font-medium text-purple-50 active:scale-[0.98] transition flex items-center justify-center gap-2.5 disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2.5 rounded-lg border border-input bg-card py-3.5 text-[14px] font-medium text-foreground transition active:scale-[0.98] disabled:opacity-60"
           >
             {googleLoading ? (
               <Loader2 size={16} className="animate-spin" />
@@ -220,7 +207,7 @@ function AuthPage() {
 
         <button
           onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(null); }}
-          className="mt-5 w-full text-center text-[13px] text-purple-200/70 hover:text-fuchsia-200 transition"
+          className="mt-6 w-full text-center text-[13px] text-muted-foreground transition hover:text-foreground"
         >
           {mode === "signin"
             ? "New here? Create an account →"

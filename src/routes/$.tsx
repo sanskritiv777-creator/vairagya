@@ -33,23 +33,23 @@ function CatchAll() {
 
   if (forwarding) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#07050F]">
-        <Loader2 className="h-6 w-6 animate-spin text-purple-300" />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#07050F] px-5 text-white">
+    <div className="flex min-h-screen items-center justify-center bg-background px-5 text-foreground">
       <div className="max-w-md text-center">
         <h1 className="text-6xl font-bold">404</h1>
         <h2 className="mt-3 text-lg font-semibold">Page not found</h2>
-        <p className="mt-2 text-[13px] text-purple-200/70">
+        <p className="mt-2 text-[13px] text-muted-foreground">
           That page doesn't exist in Vairagya.
         </p>
         <Link
           to="/"
-          className="mt-6 inline-flex items-center justify-center rounded-xl bg-purple-500 px-5 py-3 text-[14px] font-semibold text-white transition hover:bg-purple-400"
+          className="mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-3 text-[14px] font-semibold text-primary-foreground transition"
         >
           Go home
         </Link>
