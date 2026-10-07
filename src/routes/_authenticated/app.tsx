@@ -717,10 +717,10 @@ function Dashboard() {
                   style={{
                     background:
                       newExpense.category === c
-                        ? "linear-gradient(135deg,#C084FC,#7C3AED)"
+                        ? "var(--foreground)"
                         : "rgba(168,85,247,0.12)",
-                    border: "1px solid rgba(216,180,254,0.25)",
-                    color: newExpense.category === c ? "#FFF" : "#E9D5FF",
+                    border: "1px solid var(--border)",
+                    color: newExpense.category === c ? "var(--background)" : "var(--muted-foreground)",
                   }}
                 >
                   {c}
@@ -1001,7 +1001,7 @@ function BottomSheet({
       <div
         className="va-sheet va-scroll relative w-full max-w-md rounded-t-3xl p-5 va-glass max-h-[88dvh] overflow-y-auto overflow-x-hidden"
         style={{
-          background: "linear-gradient(180deg, #15092A 0%, #0B0518 100%)",
+          background: "var(--card)",
           paddingBottom: "calc(2rem + env(safe-area-inset-bottom))",
         }}
       >
@@ -1036,8 +1036,8 @@ function SecondarySheet({
       <div
         className="va-sheet va-scroll relative w-full max-w-md rounded-t-3xl p-5 max-h-[92dvh] overflow-y-auto overflow-x-hidden"
         style={{
-          background: "linear-gradient(180deg, #15092A 0%, #07050F 100%)",
-          border: "1px solid rgba(168,85,247,0.2)",
+          background: "var(--card)",
+          border: "1px solid var(--border)",
           paddingBottom: "calc(7rem + env(safe-area-inset-bottom))",
         }}
       >
@@ -1078,7 +1078,7 @@ function LedgerList({
       {items.map((it) => (
         <div key={it.id} className="flex items-center gap-3 px-4 py-3.5 group">
           <div
-            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${it.positive ? "bg-emerald-400/15 text-emerald-300" : "bg-fuchsia-400/15 text-fuchsia-300"}`}
+            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${it.positive ? "bg-emerald-400/10 money-in" : "bg-destructive/10 money-out"}`}
           >
             {it.positive ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
           </div>
@@ -1087,7 +1087,7 @@ function LedgerList({
             <div className="text-[12.5px] text-purple-200/50">{it.secondary}</div>
           </div>
           <div
-            className={`va-mono text-[14.5px] shrink-0 ${it.positive ? "text-emerald-300" : "text-fuchsia-200"}`}
+            className={`va-mono text-[14.5px] shrink-0 ${it.positive ? "money-in" : "money-out"}`}
           >
             {it.positive ? "+" : "−"}
             {currency(it.amount)}
@@ -1155,7 +1155,7 @@ function ProfilePanel({
             onMouseUp={() => onTaxRate(localRate)}
             onTouchEnd={() => onTaxRate(localRate)}
             className="w-full"
-            style={{ accentColor: "#C084FC" }}
+            style={{ accentColor: "var(--foreground)" }}
           />
           <div className="flex justify-between text-[11.5px] text-purple-200/50 mt-1">
             <span>10%</span>
@@ -1779,10 +1779,10 @@ function UpiPanel({ ai }: { ai: AutoImport }) {
                 style={{
                   background:
                     form.direction === d
-                      ? "linear-gradient(135deg,#C084FC,#7C3AED)"
+                      ? "var(--foreground)"
                       : "rgba(168,85,247,0.10)",
-                  border: "1px solid rgba(216,180,254,0.25)",
-                  color: form.direction === d ? "#fff" : "#E9D5FF",
+                  border: "1px solid var(--border)",
+                  color: form.direction === d ? "var(--background)" : "var(--muted-foreground)",
                 }}
               >
                 {d === "credit" ? "Money in" : "Money out"}
@@ -1817,10 +1817,10 @@ function UpiPanel({ ai }: { ai: AutoImport }) {
                 style={{
                   background:
                     form.category === c.value
-                      ? "linear-gradient(135deg,#C084FC,#7C3AED)"
+                      ? "var(--foreground)"
                       : "rgba(168,85,247,0.10)",
-                  border: "1px solid rgba(216,180,254,0.25)",
-                  color: form.category === c.value ? "#fff" : "#E9D5FF",
+                  border: "1px solid var(--border)",
+                  color: form.category === c.value ? "var(--background)" : "var(--muted-foreground)",
                 }}
               >
                 {c.label}
@@ -1859,7 +1859,7 @@ function UpiPanel({ ai }: { ai: AutoImport }) {
               <div key={t.id} className="px-4 py-3">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${t.direction === "credit" ? "bg-emerald-400/15 text-emerald-300" : "bg-fuchsia-400/15 text-fuchsia-300"}`}
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${t.direction === "credit" ? "bg-emerald-400/10 money-in" : "bg-destructive/10 money-out"}`}
                   >
                     {t.direction === "credit" ? (
                       <ArrowDownLeft size={16} />
@@ -1874,7 +1874,7 @@ function UpiPanel({ ai }: { ai: AutoImport }) {
                     </div>
                   </div>
                   <div
-                    className={`va-mono text-[14.5px] shrink-0 ${t.direction === "credit" ? "text-emerald-300" : "text-fuchsia-200"}`}
+                    className={`va-mono text-[14.5px] shrink-0 ${t.direction === "credit" ? "money-in" : "money-out"}`}
                   >
                     {t.direction === "credit" ? "+" : "−"}₹
                     {Number(t.amount).toLocaleString("en-IN")}
@@ -1896,10 +1896,10 @@ function UpiPanel({ ai }: { ai: AutoImport }) {
                       style={{
                         background:
                           t.category === c.value
-                            ? "linear-gradient(135deg,#C084FC,#7C3AED)"
+                            ? "var(--foreground)"
                             : "rgba(168,85,247,0.08)",
-                        border: "1px solid rgba(216,180,254,0.18)",
-                        color: t.category === c.value ? "#fff" : "#DDD6FE",
+                        border: "1px solid var(--border)",
+                        color: t.category === c.value ? "var(--background)" : "var(--muted-foreground)",
                       }}
                     >
                       {c.label}
@@ -2184,7 +2184,7 @@ function AutoImportCard({ ai }: { ai: AutoImport }) {
     <div className="va-glass rounded-2xl p-5 space-y-4">
       <div className="flex items-start gap-3">
         <div
-          className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${enabled ? "bg-emerald-400/15 text-emerald-300" : "bg-purple-400/15 text-purple-200"}`}
+          className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${enabled ? "bg-emerald-400/10 money-in" : "bg-secondary text-muted-foreground"}`}
         >
           <Smartphone size={19} />
         </div>
@@ -2331,7 +2331,7 @@ const TxnRow = memo(function TxnRow({
       </div>
       <div className="text-right shrink-0">
         <div
-          className={`va-mono text-[15px] ${positive ? "text-emerald-300" : "text-fuchsia-200"}`}
+          className={`va-mono text-[15px] ${positive ? "money-in" : "money-out"}`}
         >
           {positive ? "+" : "\u2212"}
           {currency(t.amount)}
@@ -2426,9 +2426,9 @@ function AllTransactionsPanel({
             className="flex-1 rounded-xl py-2.5 text-[14px] transition"
             style={{
               background:
-                dir === v ? "linear-gradient(135deg,#C084FC,#7C3AED)" : "rgba(168,85,247,0.10)",
+                dir === v ? "var(--foreground)" : "rgba(168,85,247,0.10)",
               border: "1px solid rgba(216,180,254,0.22)",
-              color: dir === v ? "#fff" : "#E9D5FF",
+              color: dir === v ? "var(--background)" : "var(--muted-foreground)",
             }}
           >
             {l}
@@ -2502,9 +2502,9 @@ function Chip({
       onClick={onClick}
       className="shrink-0 px-3.5 py-2 rounded-full text-[13.5px] transition active:scale-95"
       style={{
-        background: active ? "linear-gradient(135deg,#C084FC,#7C3AED)" : "rgba(168,85,247,0.10)",
+        background: active ? "var(--foreground)" : "rgba(168,85,247,0.10)",
         border: "1px solid rgba(216,180,254,0.22)",
-        color: active ? "#fff" : "#E9D5FF",
+        color: active ? "var(--background)" : "var(--muted-foreground)",
       }}
     >
       {children}
@@ -2518,8 +2518,7 @@ function PermissionDeniedScreen({ ai, onSkip }: { ai: AutoImport; onSkip: () => 
     <div
       className="fixed inset-0 z-[60] flex flex-col justify-center px-7"
       style={{
-        background:
-          "radial-gradient(700px 480px at 50% 0%, rgba(168,85,247,0.35), transparent 65%), #07050F",
+        background: "var(--background)",
       }}
     >
       <div className="max-w-md w-full mx-auto space-y-7">
