@@ -1,7 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowRight, Gem, Loader2, Lock, Sparkles, TrendingUp } from "lucide-react";
-import splashBg from "@/assets/splash-bg.jpg";
+import { ArrowRight, Loader2 } from "lucide-react";
+import confusionArt from "@/assets/onboarding-confusion.jpg";
+import todoArt from "@/assets/onboarding-todo.jpg";
+import mark from "@/assets/vairagya-mark.png";
+import { VairagyaLogo } from "@/components/vairagya-logo";
 import { supabase } from "@/integrations/supabase/client";
 
 export const ONBOARDED_KEY = "vairagya:onboarded";
@@ -10,18 +13,12 @@ export const Route = createFileRoute("/")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Vairagya — Clarity in every rupee" },
-      {
-        name: "description",
-        content:
-          "Vairagya helps freelancers track income, set aside tax, and see their real runway automatically.",
-      },
-      { property: "og:title", content: "Vairagya — Clarity in every rupee" },
-      {
-        property: "og:description",
-        content:
-          "Vairagya helps freelancers track income, set aside tax, and see their real runway automatically.",
-      },
+      { title: "Vairagya — Clarity for your money" },
+      { name: "description", content: "A clear personal finance view for freelancers and independent workers." },
+      { property: "og:title", content: "Vairagya — Clarity for your money" },
+      { property: "og:description", content: "A clear personal finance view for freelancers and independent workers." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: SplashScreen,
@@ -29,220 +26,113 @@ export const Route = createFileRoute("/")({
 
 const SLIDES = [
   {
-    eyebrow: "VARAIGYA",
-    version: "V1",
-    titleLead: "Clarity in",
-    titleAccent: "every rupee.",
-    sub: "Track, manage & grow\nyour runway with purpose.",
-    metricLabel: "Runway",
-    metricValue: "1.3 months",
-    metricCaption: "and counting...",
+    title: "Where did it all go?",
+    body: "Your money moves fast. Keeping track shouldn’t.",
+    art: confusionArt,
+    alt: "Hand-drawn freelancer wondering where their money went",
   },
   {
-    eyebrow: "VARAIGYA",
-    version: "V1",
-    titleLead: "Know what's",
-    titleAccent: "truly yours.",
-    sub: "Auto set-aside for taxes,\nso the rest is safe to spend.",
-    metricLabel: "Safe to spend",
-    metricValue: "₹ 42,800",
-    metricCaption: "after tax jar",
+    title: "Too much to keep up with?",
+    body: "Expenses, income, reminders — scattered everywhere.",
+    art: todoArt,
+    alt: "Hand-drawn freelancer overwhelmed by a long to-do list",
   },
   {
-    eyebrow: "VARAIGYA",
-    version: "V1",
-    titleLead: "Built for",
-    titleAccent: "freelancers.",
-    sub: "Income, expenses & quarterly\nreminders — all in one place.",
-    metricLabel: "Next reminder",
-    metricValue: "Q3 Tax",
-    metricCaption: "Sept 15",
+    title: "Clarity, finally.",
+    body: "Vairagya brings your money into one clear picture.",
+    art: mark,
+    alt: "Vairagya financial movement mark",
   },
 ];
 
 function SplashScreen() {
   const navigate = useNavigate();
   const [index, setIndex] = useState(0);
-  // "checking" until we know whether this launch should skip onboarding entirely.
   const [gate, setGate] = useState<"checking" | "show">("checking");
   const slide = SLIDES[index];
 
-  // Returning users never see onboarding again:
-  // signed in -> dashboard, onboarding already done -> login.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      // If an OAuth redirect lands on "/" (host fallback / masked SPA path),
-      // hand the sign-in params to the callback screen instead of onboarding.
+    void (async () => {
       const search = new URLSearchParams(window.location.search);
       const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
       const hasOAuth = ["code", "access_token", "error", "error_description"].some(
-        (k) => search.has(k) || hash.has(k),
+        (key) => search.has(key) || hash.has(key),
       );
       if (hasOAuth) {
-        window.location.replace(
-          `/auth/callback${window.location.search}${window.location.hash}`,
-        );
+        window.location.replace(`/auth/callback${window.location.search}${window.location.hash}`);
         return;
       }
-
       const seen = localStorage.getItem(ONBOARDED_KEY) === "1";
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
-      if (data.session) {
-        navigate({ to: "/app", replace: true });
-        return;
-      }
-      if (seen) {
-        navigate({ to: "/auth", replace: true });
-        return;
-      }
-      setGate("show");
+      if (data.session) navigate({ to: "/app", replace: true });
+      else if (seen) navigate({ to: "/auth", replace: true });
+      else setGate("show");
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [navigate]);
 
-  useEffect(() => {
-    if (gate !== "show") return;
-    const id = setInterval(() => setIndex((i) => (i + 1) % SLIDES.length), 5000);
-    return () => clearInterval(id);
-  }, [gate]);
-
-  const isLast = index === SLIDES.length - 1;
   const advance = () => {
-    if (isLast) {
+    if (index === SLIDES.length - 1) {
       localStorage.setItem(ONBOARDED_KEY, "1");
       navigate({ to: "/auth", replace: true });
-    } else setIndex((i) => i + 1);
+    } else {
+      setIndex((current) => current + 1);
+    }
   };
 
   if (gate === "checking") {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#07050F]">
-        <Loader2 className="h-6 w-6 animate-spin text-purple-300" />
-      </div>
-    );
+    return <div className="grid min-h-screen place-items-center bg-background"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
   }
 
+  const isLast = index === SLIDES.length - 1;
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-[#07050F] text-white">
-      {/* Background image */}
-      <img
-        src={splashBg}
-        alt=""
-        aria-hidden
-        className="absolute inset-0 h-full w-full object-cover opacity-90"
-      />
-      {/* Vignettes & glows */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#07050F]/70 via-[#0B0718]/30 to-[#07050F]" />
-      <div className="absolute -top-40 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-purple-500/20 blur-3xl" />
-      <div className="pointer-events-none absolute top-10 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full border border-purple-400/30 shadow-[0_0_120px_30px_rgba(168,85,247,0.35)]" />
+    <main className="min-h-[100dvh] overflow-hidden bg-background text-foreground">
+      <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(1.5rem+env(safe-area-inset-top))]">
+        <div className="flex h-9 items-center"><VairagyaLogo /></div>
 
-      {/* Content */}
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-md flex-col px-7 pt-14 pb-8">
-        {/* Brand */}
-        <div className="flex flex-col items-center text-center">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-purple-300/30 bg-white/[0.06] backdrop-blur-xl shadow-[0_8px_30px_-8px_rgba(168,85,247,0.6)]">
-            <Gem className="h-6 w-6 text-purple-200" strokeWidth={1.4} />
-          </div>
-          <p className="text-[11px] font-medium tracking-[0.45em] text-white/70">
-            {slide.eyebrow}
-          </p>
-          <p className="mt-1 text-[10px] tracking-[0.3em] text-white/40">
-            {slide.version}
-          </p>
-        </div>
-
-        {/* Headline */}
-        <div className="mt-10 relative">
-          <Sparkles
-            className="absolute -left-1 -top-2 h-5 w-5 text-white/70"
-            strokeWidth={1.2}
-          />
-          <h1
-            key={index}
-            className="animate-[fadeUp_0.6s_ease-out] font-serif text-5xl leading-[1.05] tracking-tight text-white"
-            style={{ fontFamily: "'Cormorant Garamond', 'Bricolage Grotesque', serif" }}
-          >
-            {slide.titleLead}
-            <br />
-            <span className="bg-gradient-to-r from-purple-200 via-purple-300 to-purple-500 bg-clip-text text-transparent">
-              {slide.titleAccent}
-            </span>
-          </h1>
-          <p
-            key={`sub-${index}`}
-            className="mt-5 whitespace-pre-line text-base leading-relaxed text-white/65 animate-[fadeUp_0.7s_ease-out]"
-          >
-            {slide.sub}
-          </p>
-        </div>
-
-        {/* Glass metric card */}
-        <div className="mt-auto flex justify-center pt-10">
-          <div
-            key={`card-${index}`}
-            className="animate-[fadeUp_0.8s_ease-out] w-64 rounded-3xl border border-white/15 bg-white/[0.06] p-5 backdrop-blur-xl shadow-[0_20px_60px_-15px_rgba(168,85,247,0.4)]"
-          >
-            <div className="flex items-center justify-between text-purple-200/80">
-              <Sparkles className="h-4 w-4" strokeWidth={1.3} />
-              <TrendingUp className="h-4 w-4" strokeWidth={1.3} />
-            </div>
-            <p className="mt-4 text-sm text-white/70">{slide.metricLabel}</p>
-            <p
-              className="mt-1 text-3xl font-light text-white"
-              style={{ fontFamily: "'Cormorant Garamond', serif" }}
-            >
-              {slide.metricValue}
-            </p>
-            <p className="mt-1 text-sm italic text-white/50">{slide.metricCaption}</p>
-          </div>
-        </div>
-
-        {/* Dots */}
-        <div className="mt-8 flex justify-center gap-2">
-          {SLIDES.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setIndex(i)}
-              aria-label={`Go to slide ${i + 1}`}
-              className={`h-2 rounded-full transition-all ${
-                i === index ? "w-6 bg-purple-400" : "w-2 bg-white/25"
-              }`}
+        <div className="flex flex-1 flex-col justify-center py-4">
+          <div key={`art-${index}`} className="onboard-rise mx-auto grid h-[31vh] min-h-52 max-h-72 w-full place-items-center overflow-hidden">
+            <img
+              src={slide.art}
+              alt={slide.alt}
+              width={1024}
+              height={1024}
+              className={isLast ? "h-36 w-36 object-contain" : "h-64 w-64 max-h-full max-w-[72vw] object-contain"}
             />
-          ))}
+          </div>
+
+          <div key={`copy-${index}`} className="onboard-copy mt-3 max-w-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">0{index + 1} / 03</p>
+            <h1 className="mt-4 text-[clamp(2rem,9vw,2.75rem)] font-semibold leading-[1.03]">{slide.title}</h1>
+            <p className="mt-4 max-w-xs text-[15px] leading-6 text-muted-foreground">{slide.body}</p>
+          </div>
         </div>
 
-        {/* CTA */}
-        <button
-          onClick={advance}
-          className="group relative mt-6 flex h-16 w-full items-center justify-between rounded-full bg-gradient-to-r from-purple-400 via-purple-300 to-purple-500 px-6 text-[#1a0b2e] shadow-[0_15px_50px_-10px_rgba(168,85,247,0.7)] transition active:scale-[0.98]"
-        >
-          <span className="flex-1 text-center text-base font-semibold tracking-wide">
-            {isLast ? "Begin your runway" : "Continue"}
-          </span>
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#1a0b2e]/80 text-white transition group-hover:translate-x-0.5">
-            <ArrowRight className="h-5 w-5" />
-          </span>
-        </button>
-
-        {/* Footer */}
-        <div className="mt-5 flex items-center justify-center gap-3 text-xs text-white/45">
-          <span className="h-px w-8 bg-white/15" />
-          <Lock className="h-3.5 w-3.5" />
-          <span>Your data is private &amp; secure</span>
-          <span className="h-px w-8 bg-white/15" />
+        <div className="space-y-5">
+          <div className="grid grid-cols-3 gap-2" aria-label={`Slide ${index + 1} of 3`}>
+            {SLIDES.map((item, itemIndex) => (
+              <button key={item.title} onClick={() => setIndex(itemIndex)} aria-label={`Go to slide ${itemIndex + 1}`} className="h-1 rounded-full bg-secondary">
+                <span className={`block h-full origin-left rounded-full bg-foreground transition-transform duration-300 ${itemIndex <= index ? "scale-x-100" : "scale-x-0"}`} />
+              </button>
+            ))}
+          </div>
+          <button onClick={advance} className="flex h-14 w-full items-center justify-between rounded-lg bg-primary px-5 text-[15px] font-semibold text-primary-foreground transition active:scale-[0.98]">
+            <span>{isLast ? "Get started" : "Continue"}</span>
+            <ArrowRight className="h-4 w-4" />
+          </button>
         </div>
       </div>
-
       <style>{`
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(12px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes onboardRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes onboardCopy { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .onboard-rise { animation: onboardRise .5s ease-out both; }
+        .onboard-rise img { animation: onboardFloat 5s ease-in-out infinite; }
+        .onboard-copy { animation: onboardCopy .4s .08s ease-out both; }
+        @keyframes onboardFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+        @media (prefers-reduced-motion: reduce) { .onboard-rise, .onboard-rise img, .onboard-copy { animation: none; } }
       `}</style>
-    </div>
+    </main>
   );
 }

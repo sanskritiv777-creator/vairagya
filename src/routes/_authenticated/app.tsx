@@ -47,6 +47,7 @@ import { ilog } from "@/lib/ingest-log";
 import { fetchInsights } from "@/lib/insights-client";
 import { useAutoImport, isNativeAndroidRuntime } from "@/hooks/use-auto-import";
 import { FinancialStatementsPanel } from "@/components/financial-health";
+import { VairagyaLogo } from "@/components/vairagya-logo";
 type AutoImport = ReturnType<typeof useAutoImport>;
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -307,51 +308,44 @@ function Dashboard() {
   if (profileQuery.isLoading) {
     return (
       <div
-        className="va-root min-h-screen text-white flex items-center justify-center"
-        style={{
-          background:
-            "radial-gradient(900px 500px at 80% -10%, rgba(168,85,247,0.35), transparent 60%), #07050F",
-        }}
+        className="va-root flex min-h-screen items-center justify-center bg-background text-foreground"
       >
-        <Loader2 className="animate-spin text-fuchsia-300" />
+        <Loader2 className="animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="va-root min-h-screen w-full overflow-x-hidden text-white">
+    <div className="va-root min-h-screen w-full overflow-x-hidden bg-background text-foreground">
       <style>{`
         .va-root {
-          background:
-            radial-gradient(900px 500px at 80% -10%, rgba(168,85,247,0.35), transparent 60%),
-            radial-gradient(700px 500px at -20% 110%, rgba(91,33,182,0.45), transparent 60%),
-            #07050F;
-          font-family: 'Space Grotesk', system-ui, sans-serif;
+          background: var(--background);
+          font-family: 'Syne', system-ui, sans-serif;
         }
-        .va-display { font-family: 'Bricolage Grotesque', serif; font-weight: 600; letter-spacing: -0.02em; }
-        .va-mono { font-family: 'Space Mono', monospace; }
-        .va-glass { background: linear-gradient(150deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border: 1px solid rgba(168,85,247,0.18); backdrop-filter: blur(12px); }
+        .va-display, .va-mono { font-family: 'Syne', system-ui, sans-serif; font-weight: 600; letter-spacing: 0; }
+        .va-glass { background: var(--card); border: 1px solid var(--border); box-shadow: none; }
         .va-balance-card {
-          background: radial-gradient(120% 120% at 0% 0%, rgba(216,180,254,0.35), transparent 50%), linear-gradient(135deg, #6B21A8 0%, #4C1D95 60%, #2E1065 100%);
-          box-shadow: 0 30px 60px -30px rgba(168,85,247,0.55), inset 0 1px 0 rgba(255,255,255,0.18);
+          background: var(--card);
+          border: 1px solid var(--border);
+          box-shadow: none;
         }
-        .va-quick { background: linear-gradient(160deg, rgba(168,85,247,0.10), rgba(255,255,255,0.02)); border: 1px solid rgba(168,85,247,0.22); transition: transform .15s ease, background .2s ease, border-color .2s ease; }
-        .va-quick:hover { background: linear-gradient(160deg, rgba(168,85,247,0.20), rgba(255,255,255,0.04)); border-color: rgba(216,180,254,0.45); }
+        .va-quick { background: transparent; border: 1px solid var(--border); transition: transform .15s ease, background .2s ease, border-color .2s ease; }
+        .va-quick:hover { background: var(--card); border-color: var(--muted-foreground); }
         .va-quick:active { transform: scale(0.97); }
-        .va-fab { background: radial-gradient(circle at 30% 20%, #D8B4FE, #A855F7 55%, #6B21A8); box-shadow: 0 18px 40px -12px rgba(168,85,247,0.8), inset 0 1px 0 rgba(255,255,255,0.4); }
-        .va-dock { background: rgba(15, 8, 30, 0.85); backdrop-filter: blur(16px); border: 1px solid rgba(168,85,247,0.22); }
-        .va-chip { background: rgba(168,85,247,0.15); border: 1px solid rgba(216,180,254,0.25); }
-        .va-input { background: rgba(255,255,255,0.04); border: 1px solid rgba(168,85,247,0.25); color: #F5F3FF; }
-        .va-input::placeholder { color: rgba(216,180,254,0.5); }
-        .va-input:focus { outline: none; border-color: #C084FC; box-shadow: 0 0 0 3px rgba(192,132,252,0.18); }
-        @keyframes pulseRing { 0%,100%{opacity:.55;transform:scale(1)} 50%{opacity:1;transform:scale(1.02)} }
-        .va-ring { animation: pulseRing 3.5s ease-in-out infinite; }
+        .va-fab { background: var(--foreground); color: var(--background); border: 1px solid var(--foreground); box-shadow: none; }
+        .va-dock { background: color-mix(in oklab, var(--background) 92%, transparent); backdrop-filter: blur(16px); border: 1px solid var(--border); }
+        .va-chip { background: var(--secondary); border: 1px solid var(--border); }
+        .va-input { background: var(--card); border: 1px solid var(--input); color: var(--foreground); }
+        .va-input::placeholder { color: var(--muted-foreground); }
+        .va-input:focus { outline: none; border-color: var(--foreground); box-shadow: 0 0 0 2px var(--secondary); }
         @keyframes sheetUp { from{transform:translateY(100%);opacity:0} to{transform:translateY(0);opacity:1} }
         .va-sheet { animation: sheetUp .25s ease-out; }
         @keyframes shimmer { 0%{opacity:.45} 50%{opacity:.9} 100%{opacity:.45} }
         .va-shimmer { animation: shimmer 1.4s ease-in-out infinite; }
         .va-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
-        .va-divider { height:1px; background: linear-gradient(90deg, transparent, rgba(168,85,247,0.35), transparent); }
+        .va-divider { height:1px; background: var(--border); }
+        .va-root :is(.rounded-3xl,.rounded-2xl) { border-radius: .75rem; }
+        @media (prefers-reduced-motion: reduce) { .va-sheet, .va-shimmer { animation: none; } }
       `}</style>
 
       <div
@@ -368,17 +362,14 @@ function Dashboard() {
           >
             <Menu size={18} />
           </button>
-          <div className="text-[12.5px] uppercase tracking-[0.25em] text-purple-200/60">
-            Varaigya · v1
-          </div>
+          <VairagyaLogo />
           <div className="flex items-center gap-2">
             <button
               onClick={() => setTab("ai")}
               className="w-10 h-10 rounded-full va-glass flex items-center justify-center relative active:scale-95 transition"
               aria-label="AI insights"
             >
-              <Brain size={17} className="text-fuchsia-200" />
-              <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <Brain size={17} className="text-foreground" />
             </button>
             <button
               onClick={() => setTab("reminders")}
@@ -386,7 +377,7 @@ function Dashboard() {
               aria-label="Reminders"
             >
               <Bell size={17} />
-              <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-fuchsia-400" />
+              <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-foreground" />
             </button>
           </div>
         </div>
@@ -399,7 +390,7 @@ function Dashboard() {
         <div className="px-6 mt-6">
           <button
             onClick={() => setTab("statements")}
-            className="va-balance-card w-full rounded-3xl px-5 py-6 text-left active:scale-[0.99] transition-transform"
+            className="va-balance-card w-full rounded-xl px-5 py-6 text-left transition-transform active:scale-[0.99]"
             aria-label="Open financial statements"
           >
             <div className="text-purple-200/75 text-[13.5px]">Safe to spend</div>
@@ -426,7 +417,7 @@ function Dashboard() {
                 onClick={q.onClick}
                 className="va-quick rounded-2xl py-3 px-1 flex flex-col items-center gap-1.5 min-w-0"
               >
-                <q.icon size={18} className="text-fuchsia-200 shrink-0" />
+                 <q.icon size={18} className="shrink-0 text-foreground" />
                 <span className="text-[10.5px] leading-tight text-purple-100/80 text-center w-full">
                   {q.label}
                 </span>
@@ -450,10 +441,10 @@ function Dashboard() {
                 role="tab"
                 aria-selected={homePeriod === value}
                 onClick={() => setHomePeriod(value)}
-                className={`rounded-lg py-2 text-[13.5px] transition-all active:scale-[0.98] ${
+                 className={`rounded-md py-2 text-[13.5px] transition-all active:scale-[0.98] ${
                   homePeriod === value
-                    ? "bg-purple-400/20 text-purple-50 shadow-sm"
-                    : "text-purple-200/55"
+                     ? "bg-foreground text-background"
+                     : "text-muted-foreground"
                 }`}
               >
                 {label}
@@ -473,9 +464,9 @@ function Dashboard() {
               </div>
               <ChevronRight size={17} className="mb-2 text-purple-200/45 shrink-0" />
             </div>
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-purple-400/10">
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-secondary">
               <div
-                className="h-full rounded-full bg-fuchsia-300/70 transition-[width] duration-300 ease-out"
+                className="money-out h-full rounded-full bg-destructive transition-[width] duration-300 ease-out"
                 style={{ width: `${spendingProgress}%` }}
               />
             </div>
@@ -543,15 +534,15 @@ function Dashboard() {
           className="fixed left-1/2 -translate-x-1/2 z-30 w-[88%] max-w-md"
           style={{ bottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
         >
-          <div className="va-dock rounded-full px-3 py-2 flex items-center justify-between">
+          <div className="va-dock flex items-center justify-between rounded-xl px-3 py-2">
             <DockBtn icon={Home} active={tab === "home"} onClick={() => setTab("home")} />
             <DockBtn icon={Receipt} active={tab === "ledger"} onClick={() => setTab("ledger")} />
             <button
               onClick={() => setSheet("add")}
-              className="va-fab w-14 h-14 rounded-full flex items-center justify-center -mt-8 active:scale-95 transition"
+               className="va-fab -mt-8 flex h-14 w-14 items-center justify-center rounded-full transition active:scale-95"
               aria-label="Add"
             >
-              <Plus size={24} className="text-white" />
+               <Plus size={24} className="text-background" />
             </button>
             <DockBtn
               icon={PieChart}
@@ -726,10 +717,10 @@ function Dashboard() {
                   style={{
                     background:
                       newExpense.category === c
-                        ? "linear-gradient(135deg,#C084FC,#7C3AED)"
+                        ? "var(--foreground)"
                         : "rgba(168,85,247,0.12)",
-                    border: "1px solid rgba(216,180,254,0.25)",
-                    color: newExpense.category === c ? "#FFF" : "#E9D5FF",
+                    border: "1px solid var(--border)",
+                    color: newExpense.category === c ? "var(--background)" : "var(--muted-foreground)",
                   }}
                 >
                   {c}
@@ -1010,7 +1001,7 @@ function BottomSheet({
       <div
         className="va-sheet va-scroll relative w-full max-w-md rounded-t-3xl p-5 va-glass max-h-[88dvh] overflow-y-auto overflow-x-hidden"
         style={{
-          background: "linear-gradient(180deg, #15092A 0%, #0B0518 100%)",
+          background: "var(--card)",
           paddingBottom: "calc(2rem + env(safe-area-inset-bottom))",
         }}
       >
@@ -1045,8 +1036,8 @@ function SecondarySheet({
       <div
         className="va-sheet va-scroll relative w-full max-w-md rounded-t-3xl p-5 max-h-[92dvh] overflow-y-auto overflow-x-hidden"
         style={{
-          background: "linear-gradient(180deg, #15092A 0%, #07050F 100%)",
-          border: "1px solid rgba(168,85,247,0.2)",
+          background: "var(--card)",
+          border: "1px solid var(--border)",
           paddingBottom: "calc(7rem + env(safe-area-inset-bottom))",
         }}
       >
@@ -1087,7 +1078,7 @@ function LedgerList({
       {items.map((it) => (
         <div key={it.id} className="flex items-center gap-3 px-4 py-3.5 group">
           <div
-            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${it.positive ? "bg-emerald-400/15 text-emerald-300" : "bg-fuchsia-400/15 text-fuchsia-300"}`}
+            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${it.positive ? "bg-emerald-400/10 money-in" : "bg-destructive/10 money-out"}`}
           >
             {it.positive ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
           </div>
@@ -1096,7 +1087,7 @@ function LedgerList({
             <div className="text-[12.5px] text-purple-200/50">{it.secondary}</div>
           </div>
           <div
-            className={`va-mono text-[14.5px] shrink-0 ${it.positive ? "text-emerald-300" : "text-fuchsia-200"}`}
+            className={`va-mono text-[14.5px] shrink-0 ${it.positive ? "money-in" : "money-out"}`}
           >
             {it.positive ? "+" : "−"}
             {currency(it.amount)}
@@ -1164,7 +1155,7 @@ function ProfilePanel({
             onMouseUp={() => onTaxRate(localRate)}
             onTouchEnd={() => onTaxRate(localRate)}
             className="w-full"
-            style={{ accentColor: "#C084FC" }}
+            style={{ accentColor: "var(--foreground)" }}
           />
           <div className="flex justify-between text-[11.5px] text-purple-200/50 mt-1">
             <span>10%</span>
@@ -1788,10 +1779,10 @@ function UpiPanel({ ai }: { ai: AutoImport }) {
                 style={{
                   background:
                     form.direction === d
-                      ? "linear-gradient(135deg,#C084FC,#7C3AED)"
+                      ? "var(--foreground)"
                       : "rgba(168,85,247,0.10)",
-                  border: "1px solid rgba(216,180,254,0.25)",
-                  color: form.direction === d ? "#fff" : "#E9D5FF",
+                  border: "1px solid var(--border)",
+                  color: form.direction === d ? "var(--background)" : "var(--muted-foreground)",
                 }}
               >
                 {d === "credit" ? "Money in" : "Money out"}
@@ -1826,10 +1817,10 @@ function UpiPanel({ ai }: { ai: AutoImport }) {
                 style={{
                   background:
                     form.category === c.value
-                      ? "linear-gradient(135deg,#C084FC,#7C3AED)"
+                      ? "var(--foreground)"
                       : "rgba(168,85,247,0.10)",
-                  border: "1px solid rgba(216,180,254,0.25)",
-                  color: form.category === c.value ? "#fff" : "#E9D5FF",
+                  border: "1px solid var(--border)",
+                  color: form.category === c.value ? "var(--background)" : "var(--muted-foreground)",
                 }}
               >
                 {c.label}
@@ -1868,7 +1859,7 @@ function UpiPanel({ ai }: { ai: AutoImport }) {
               <div key={t.id} className="px-4 py-3">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${t.direction === "credit" ? "bg-emerald-400/15 text-emerald-300" : "bg-fuchsia-400/15 text-fuchsia-300"}`}
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${t.direction === "credit" ? "bg-emerald-400/10 money-in" : "bg-destructive/10 money-out"}`}
                   >
                     {t.direction === "credit" ? (
                       <ArrowDownLeft size={16} />
@@ -1883,7 +1874,7 @@ function UpiPanel({ ai }: { ai: AutoImport }) {
                     </div>
                   </div>
                   <div
-                    className={`va-mono text-[14.5px] shrink-0 ${t.direction === "credit" ? "text-emerald-300" : "text-fuchsia-200"}`}
+                    className={`va-mono text-[14.5px] shrink-0 ${t.direction === "credit" ? "money-in" : "money-out"}`}
                   >
                     {t.direction === "credit" ? "+" : "−"}₹
                     {Number(t.amount).toLocaleString("en-IN")}
@@ -1905,10 +1896,10 @@ function UpiPanel({ ai }: { ai: AutoImport }) {
                       style={{
                         background:
                           t.category === c.value
-                            ? "linear-gradient(135deg,#C084FC,#7C3AED)"
+                            ? "var(--foreground)"
                             : "rgba(168,85,247,0.08)",
-                        border: "1px solid rgba(216,180,254,0.18)",
-                        color: t.category === c.value ? "#fff" : "#DDD6FE",
+                        border: "1px solid var(--border)",
+                        color: t.category === c.value ? "var(--background)" : "var(--muted-foreground)",
                       }}
                     >
                       {c.label}
@@ -2193,7 +2184,7 @@ function AutoImportCard({ ai }: { ai: AutoImport }) {
     <div className="va-glass rounded-2xl p-5 space-y-4">
       <div className="flex items-start gap-3">
         <div
-          className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${enabled ? "bg-emerald-400/15 text-emerald-300" : "bg-purple-400/15 text-purple-200"}`}
+          className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${enabled ? "bg-emerald-400/10 money-in" : "bg-secondary text-muted-foreground"}`}
         >
           <Smartphone size={19} />
         </div>
@@ -2340,7 +2331,7 @@ const TxnRow = memo(function TxnRow({
       </div>
       <div className="text-right shrink-0">
         <div
-          className={`va-mono text-[15px] ${positive ? "text-emerald-300" : "text-fuchsia-200"}`}
+          className={`va-mono text-[15px] ${positive ? "money-in" : "money-out"}`}
         >
           {positive ? "+" : "\u2212"}
           {currency(t.amount)}
@@ -2435,9 +2426,9 @@ function AllTransactionsPanel({
             className="flex-1 rounded-xl py-2.5 text-[14px] transition"
             style={{
               background:
-                dir === v ? "linear-gradient(135deg,#C084FC,#7C3AED)" : "rgba(168,85,247,0.10)",
+                dir === v ? "var(--foreground)" : "rgba(168,85,247,0.10)",
               border: "1px solid rgba(216,180,254,0.22)",
-              color: dir === v ? "#fff" : "#E9D5FF",
+              color: dir === v ? "var(--background)" : "var(--muted-foreground)",
             }}
           >
             {l}
@@ -2511,9 +2502,9 @@ function Chip({
       onClick={onClick}
       className="shrink-0 px-3.5 py-2 rounded-full text-[13.5px] transition active:scale-95"
       style={{
-        background: active ? "linear-gradient(135deg,#C084FC,#7C3AED)" : "rgba(168,85,247,0.10)",
+        background: active ? "var(--foreground)" : "rgba(168,85,247,0.10)",
         border: "1px solid rgba(216,180,254,0.22)",
-        color: active ? "#fff" : "#E9D5FF",
+        color: active ? "var(--background)" : "var(--muted-foreground)",
       }}
     >
       {children}
@@ -2527,8 +2518,7 @@ function PermissionDeniedScreen({ ai, onSkip }: { ai: AutoImport; onSkip: () => 
     <div
       className="fixed inset-0 z-[60] flex flex-col justify-center px-7"
       style={{
-        background:
-          "radial-gradient(700px 480px at 50% 0%, rgba(168,85,247,0.35), transparent 65%), #07050F",
+        background: "var(--background)",
       }}
     >
       <div className="max-w-md w-full mx-auto space-y-7">
