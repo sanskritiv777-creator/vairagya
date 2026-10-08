@@ -53,8 +53,12 @@ type AutoImport = ReturnType<typeof useAutoImport>;
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({
     meta: [
-      { title: "Varaigya — Your dashboard" },
+      { title: "Vairagya — Your money" },
       { name: "description", content: "Track income, expenses, tax set-aside, and runway." },
+      { property: "og:title", content: "Vairagya — Your money" },
+      { property: "og:description", content: "Track income, expenses, tax set-aside, and runway." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: Dashboard,

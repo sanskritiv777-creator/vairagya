@@ -6,7 +6,14 @@ import { Loader2 } from "lucide-react";
 export const Route = createFileRoute("/auth/callback")({
   ssr: false,
   head: () => ({
-    meta: [{ title: "Signing you in — Vairagya" }],
+    meta: [
+      { title: "Signing you in — Vairagya" },
+      { name: "description", content: "Complete your secure Vairagya sign-in." },
+      { property: "og:title", content: "Signing you in — Vairagya" },
+      { property: "og:description", content: "Complete your secure Vairagya sign-in." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
   }),
   component: AuthCallbackPage,
 });
