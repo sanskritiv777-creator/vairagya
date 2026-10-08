@@ -140,3 +140,5 @@
 
 .money-in { color: oklch(0.68 0.13 150) !important; }
 .money-out { color: oklch(0.64 0.18 25) !important; }
+:where(.text-emerald-200,.text-emerald-300,.text-emerald-400) { color: oklch(0.68 0.13 150) !important; }
+:where(.text-rose-200,.text-rose-300,.text-rose-400) { color: oklch(0.64 0.18 25) !important; }
