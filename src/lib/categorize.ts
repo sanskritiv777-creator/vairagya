@@ -40,7 +40,7 @@ export type CategoryMeta = {
   key: CategoryKey;
   label: string;
   icon: LucideIcon;
-  /** Tailwind-free explicit colors so cards stay on the purple palette. */
+  /** Tailwind-free explicit colors so cards stay on the grayscale palette. */
   color: string;
   tint: string;
 };
@@ -57,7 +57,7 @@ export const CATEGORIES: Record<CategoryKey, CategoryMeta> = {
     key: "shopping",
     label: "Shopping",
     icon: ShoppingBag,
-    color: "#F0ABFC",
+    color: "#E05252",
     tint: "rgba(240,171,252,0.14)",
   },
   travel: {
@@ -78,14 +78,14 @@ export const CATEGORIES: Record<CategoryKey, CategoryMeta> = {
     key: "fuel",
     label: "Fuel",
     icon: Fuel,
-    color: "#FCA5A5",
+    color: "#E05252",
     tint: "rgba(252,165,165,0.14)",
   },
   medicine: {
     key: "medicine",
     label: "Medicine",
     icon: Pill,
-    color: "#6EE7B7",
+    color: "#4CAF72",
     tint: "rgba(110,231,183,0.14)",
   },
   entertainment: {
@@ -99,7 +99,7 @@ export const CATEGORIES: Record<CategoryKey, CategoryMeta> = {
     key: "salary",
     label: "Salary",
     icon: Landmark,
-    color: "#34D399",
+    color: "#4CAF72",
     tint: "rgba(52,211,153,0.14)",
   },
   client: {
