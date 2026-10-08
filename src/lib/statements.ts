@@ -61,18 +61,18 @@ const ESSENTIAL: ExpenseBucket[] = [
 ];
 
 export const BUCKET_COLORS: Record<string, string> = {
-  Salary: "#34D399",
+  Salary: "#4CAF72",
   "Freelance / Business": "#5EEAD4",
   "Money Received": "#A5B4FC",
   Refunds: "#93C5FD",
   "Other Income": "#DDD6FE",
   Food: "#FDBA74",
-  Shopping: "#F0ABFC",
+  Shopping: "#E05252",
   Transport: "#7DD3FC",
   "Bills & Utilities": "#C4B5FD",
   Entertainment: "#F9A8D4",
   Education: "#FCD34D",
-  Healthcare: "#6EE7B7",
+  Healthcare: "#4CAF72",
   Subscriptions: "#FDA4AF",
   "Other Expenses": "#DDD6FE",
 };

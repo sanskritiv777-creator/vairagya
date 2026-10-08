@@ -53,8 +53,12 @@ type AutoImport = ReturnType<typeof useAutoImport>;
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({
     meta: [
-      { title: "Varaigya — Your dashboard" },
+      { title: "Vairagya — Your money" },
       { name: "description", content: "Track income, expenses, tax set-aside, and runway." },
+      { property: "og:title", content: "Vairagya — Your money" },
+      { property: "og:description", content: "Track income, expenses, tax set-aside, and runway." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: Dashboard,
@@ -482,10 +486,7 @@ function Dashboard() {
             <button
               onClick={() => void ai.enableSms()}
               className="w-full mb-3.5 rounded-2xl px-5 py-4 flex items-center gap-3.5 text-left active:scale-[0.99] transition"
-              style={{
-                background: "linear-gradient(135deg, rgba(168,85,247,0.16), rgba(34,211,238,0.06))",
-                border: "1px dashed rgba(216,180,254,0.35)",
-              }}
+              style={{ background: "var(--card)", border: "1px dashed var(--border)" }}
             >
               <div className="w-10 h-10 rounded-xl bg-fuchsia-400/15 text-fuchsia-200 flex items-center justify-center shrink-0">
                 <Smartphone size={17} />
@@ -974,12 +975,7 @@ function DockBtn({
     <button
       onClick={onClick}
       className="w-10 h-10 rounded-full flex items-center justify-center transition active:scale-90"
-      style={{
-        background: active
-          ? "linear-gradient(135deg, rgba(216,180,254,0.25), rgba(168,85,247,0.15))"
-          : "transparent",
-        color: active ? "#F5F3FF" : "rgba(216,180,254,0.6)",
-      }}
+      style={{ background: active ? "var(--foreground)" : "transparent", color: active ? "var(--background)" : "var(--muted-foreground)" }}
     >
       <Icon size={18} />
     </button>
