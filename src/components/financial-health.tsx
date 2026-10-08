@@ -70,7 +70,7 @@ export const FinancialStatementsCard = memo(function FinancialStatementsCard({
 
       <div className="grid grid-cols-4 gap-2 mt-4">
         <MiniStat label="Total Income" value={inrShort(s.totalIncome)} color="#34D399" />
-        <MiniStat label="Total Expenses" value={inrShort(s.totalExpenses)} color="#F0ABFC" />
+        <MiniStat label="Total Expenses" value={inrShort(s.totalExpenses)} color="#E05252" />
         <MiniStat
           label="Net Income"
           value={`${s.netIncome >= 0 ? "+" : "−"}${inrShort(Math.abs(s.netIncome))}`}
@@ -79,7 +79,7 @@ export const FinancialStatementsCard = memo(function FinancialStatementsCard({
         <MiniStat
           label="Saved"
           value={rate === null ? "—" : `${Math.round(rate)}%`}
-          color="#C084FC"
+          color="#D8D8D8"
         />
       </div>
 
@@ -111,8 +111,8 @@ function IncomeExpenseBar({
   const max = Math.max(income, expenses, 1);
   return (
     <div className={`space-y-2 ${className}`}>
-      <Bar label="In" value={income} pct={(income / max) * 100} color="#34D399" />
-      <Bar label="Out" value={expenses} pct={(expenses / max) * 100} color="#F0ABFC" />
+      <Bar label="In" value={income} pct={(income / max) * 100} color="#4CAF72" />
+      <Bar label="Out" value={expenses} pct={(expenses / max) * 100} color="#E05252" />
     </div>
   );
 }
@@ -243,7 +243,7 @@ function IncomeStatement({ s }: { s: Statements }) {
           label="Total Expenses"
           value={inr(s.totalExpenses)}
           icon={ArrowUpRight}
-          accent="#F0ABFC"
+          accent="#E05252"
         />
         <Tile
           label="Net Income"
@@ -255,7 +255,7 @@ function IncomeStatement({ s }: { s: Statements }) {
           label="Savings rate"
           value={s.savingsRate === null ? "Not enough data" : `${Math.round(s.savingsRate)}%`}
           icon={PiggyBank}
-          accent="#C084FC"
+          accent="#D8D8D8"
           small={s.savingsRate === null}
         />
       </div>
@@ -368,7 +368,7 @@ function CashFlowStatement({ s }: { s: Statements }) {
           label="Total Cash Outflows"
           value={inr(s.totalExpenses)}
           icon={ArrowUpRight}
-          accent="#F0ABFC"
+          accent="#E05252"
         />
         <Tile
           label="Net Cash Flow"
@@ -380,7 +380,7 @@ function CashFlowStatement({ s }: { s: Statements }) {
           label="Closing Balance"
           value={closing === null ? "Unavailable" : inr(closing)}
           icon={PiggyBank}
-          accent="#C084FC"
+          accent="#D8D8D8"
           small={closing === null}
         />
       </div>
@@ -443,12 +443,8 @@ function SegBtn({
       className="rounded-xl py-2.5 text-[13.5px] transition"
       style={
         active
-          ? {
-              background: "rgba(192,132,252,0.25)",
-              border: "1px solid rgba(216,180,254,0.5)",
-              color: "#F5F3FF",
-            }
-          : { border: "1px solid transparent", color: "rgba(233,213,255,0.65)" }
+          ? { background: "var(--foreground)", border: "1px solid var(--foreground)", color: "var(--background)" }
+          : { border: "1px solid transparent", color: "var(--muted-foreground)" }
       }
     >
       {children}
@@ -473,11 +469,11 @@ function Chip({
       className="rounded-full px-3.5 py-2 text-[13px] whitespace-nowrap shrink-0 transition"
       style={
         active
-          ? { background: "rgba(192,132,252,0.25)", border: "1px solid rgba(216,180,254,0.5)", color: "#F5F3FF" }
+          ? { background: "var(--foreground)", border: "1px solid var(--foreground)", color: "var(--background)" }
           : {
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(168,85,247,0.2)",
-              color: "rgba(233,213,255,0.7)",
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              color: "var(--muted-foreground)",
             }
       }
     >
@@ -558,7 +554,7 @@ function Row({
       </span>
       <span
         className={`va-mono text-right truncate ${strong ? "text-[15px]" : "text-[13.5px]"}`}
-        style={{ color: value === null ? "rgba(216,180,254,0.45)" : (color ?? "#EDE9FE") }}
+        style={{ color: value === null ? "var(--muted-foreground)" : (color ?? "var(--foreground)") }}
       >
         {value ?? "Unavailable"}
       </span>
@@ -612,7 +608,7 @@ function TrendChart({ s }: { s: Statements }) {
                 className="w-1/2 rounded-t-md"
                 style={{
                   height: `${Math.max((p.expenses / max) * 100, p.expenses > 0 ? 3 : 0)}%`,
-                  background: "#F0ABFC",
+                  background: "#E05252",
                 }}
               />
             </div>
@@ -627,7 +623,7 @@ function TrendChart({ s }: { s: Statements }) {
           <span className="w-2 h-2 rounded-full" style={{ background: "#34D399" }} /> Income
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full" style={{ background: "#F0ABFC" }} /> Expenses
+          <span className="w-2 h-2 rounded-full" style={{ background: "#E05252" }} /> Expenses
         </span>
       </div>
     </div>
