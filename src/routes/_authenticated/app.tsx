@@ -324,9 +324,10 @@ function Dashboard() {
       <style>{`
         .va-root {
           background: var(--background);
-          font-family: 'Syne', system-ui, sans-serif;
+          font-family: 'Manrope', system-ui, sans-serif;
         }
-        .va-display, .va-mono { font-family: 'Syne', system-ui, sans-serif; font-weight: 600; letter-spacing: 0; }
+        .va-display { font-family: 'DM Serif Display', Georgia, serif; font-weight: 400; letter-spacing: -.01em; }
+        .va-mono, .va-num { font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -.01em; }
         .va-glass { background: var(--card); border: 1px solid var(--border); box-shadow: none; }
         .va-balance-card {
           background: var(--card);
@@ -336,7 +337,7 @@ function Dashboard() {
         .va-quick { background: transparent; border: 1px solid var(--border); transition: transform .15s ease, background .2s ease, border-color .2s ease; }
         .va-quick:hover { background: var(--card); border-color: var(--muted-foreground); }
         .va-quick:active { transform: scale(0.97); }
-        .va-fab { background: var(--foreground); color: var(--background); border: 1px solid var(--foreground); box-shadow: none; }
+        .va-fab { background: var(--primary); color: var(--primary-foreground); border: 1px solid var(--primary); box-shadow: none; }
         .va-dock { background: color-mix(in oklab, var(--background) 92%, transparent); backdrop-filter: blur(16px); border: 1px solid var(--border); }
         .va-chip { background: var(--secondary); border: 1px solid var(--border); }
         .va-input { background: var(--card); border: 1px solid var(--input); color: var(--foreground); }
@@ -398,7 +399,7 @@ function Dashboard() {
             aria-label="Open financial statements"
           >
             <div className="text-purple-200/75 text-[13.5px]">Safe to spend</div>
-            <div className="va-display text-[38px] mt-1.5 leading-none">{currency(safeToSpend)}</div>
+            <div className="va-num text-[38px] mt-1.5 leading-none">{currency(safeToSpend)}</div>
             <div className="mt-5 flex items-center gap-2.5 text-[13px] text-purple-100/70">
               <span>{runwayMonths} months runway</span>
               <span aria-hidden="true" className="h-1 w-1 rounded-full bg-purple-200/40" />
@@ -447,7 +448,7 @@ function Dashboard() {
                 onClick={() => setHomePeriod(value)}
                  className={`rounded-md py-2 text-[13.5px] transition-all active:scale-[0.98] ${
                   homePeriod === value
-                     ? "bg-foreground text-background"
+                     ? "bg-primary text-primary-foreground"
                      : "text-muted-foreground"
                 }`}
               >
@@ -464,7 +465,7 @@ function Dashboard() {
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-4">
               <div className="min-w-0">
                 <div className="va-display text-[20px]">Spending</div>
-                <div className="va-display mt-1 text-[31px] transition-opacity">{currency(selectedSpend)}</div>
+                <div className="va-num mt-1 text-[31px] transition-opacity">{currency(selectedSpend)}</div>
               </div>
               <ChevronRight size={17} className="mb-2 text-purple-200/45 shrink-0" />
             </div>
@@ -1130,7 +1131,7 @@ function ProfilePanel({
         <div className="va-display text-xl mt-0.5 truncate">{displayName}</div>
         <div className="va-divider my-3 opacity-60" />
         <div className="text-purple-200/80 text-[13.5px]">Current runway</div>
-        <div className="va-display text-3xl mt-0.5">{runway} months</div>
+        <div className="va-num text-3xl mt-0.5">{runway} months</div>
       </div>
 
       <div>
@@ -1212,9 +1213,9 @@ function InsightsPanel({
 }) {
   const total = Math.max(1, expenses + setAside + Math.max(0, safeToSpend));
   const segs = [
-    { label: "Expenses", value: expenses, color: "#F0ABFC" },
-    { label: "Tax jar", value: setAside, color: "#C084FC" },
-    { label: "Safe to spend", value: Math.max(0, safeToSpend), color: "#22D3EE" },
+    { label: "Expenses", value: expenses, color: "#E66B67" },
+    { label: "Tax jar", value: setAside, color: "#D5A45B" },
+    { label: "Safe to spend", value: Math.max(0, safeToSpend), color: "#4D9F91" },
   ];
   const R = 70;
   const C = 2 * Math.PI * R;
@@ -1260,7 +1261,7 @@ function InsightsPanel({
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <div className="text-[12.5px] text-purple-200/60">Savings rate</div>
-            <div className="va-display text-3xl text-white mt-1">{savingsRate}%</div>
+            <div className="va-num text-3xl text-white mt-1">{savingsRate}%</div>
             <div className="text-[11.5px] text-purple-200/50 mt-0.5">of income</div>
           </div>
         </div>
@@ -1285,7 +1286,7 @@ function InsightsPanel({
       <div className="grid grid-cols-2 gap-3">
         <div className="va-glass rounded-2xl p-4">
           <div className="text-[12.5px] text-purple-200/60">Total earned</div>
-          <div className="va-display text-xl text-white mt-1">{currency(income)}</div>
+          <div className="va-num text-xl text-white mt-1">{currency(income)}</div>
         </div>
         <div className="va-glass rounded-2xl p-4">
           <div className="text-[12.5px] text-purple-200/60">Effective tax</div>
@@ -1556,7 +1557,7 @@ function CalculatorPanel() {
         <div className="va-mono text-right text-purple-100/70 text-[15.5px] break-all min-h-[20px]">
           {expr || " "}
         </div>
-        <div className="va-display text-right text-white text-4xl mt-2 break-all">{result}</div>
+        <div className="va-num text-right text-white text-4xl mt-2 break-all">{result}</div>
       </div>
 
       <div className="grid grid-cols-4 gap-2.5">
