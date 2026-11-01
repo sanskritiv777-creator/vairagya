@@ -9,4 +9,4 @@
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
 
-- Keep all visual styling centralized around semantic grayscale tokens and the Syne typeface so feature screens remain visually consistent.
+- Keep all visual styling centralized around the "Midnight Jewel" semantic tokens (#101114 background, #191A20 cards, #8B7BB8 lavender accent, Manrope body + DM Serif Display headlines + Space Grotesk numbers) so feature screens remain visually consistent; green/red only for money received/spent, gold only for selective emphasis.

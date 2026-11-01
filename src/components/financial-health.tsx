@@ -69,17 +69,17 @@ export const FinancialStatementsCard = memo(function FinancialStatementsCard({
       </div>
 
       <div className="grid grid-cols-4 gap-2 mt-4">
-        <MiniStat label="Total Income" value={inrShort(s.totalIncome)} color="#34D399" />
-        <MiniStat label="Total Expenses" value={inrShort(s.totalExpenses)} color="#E05252" />
+        <MiniStat label="Total Income" value={inrShort(s.totalIncome)} color="#4D9F91" />
+        <MiniStat label="Total Expenses" value={inrShort(s.totalExpenses)} color="#E66B67" />
         <MiniStat
           label="Net Income"
           value={`${s.netIncome >= 0 ? "+" : "−"}${inrShort(Math.abs(s.netIncome))}`}
-          color={s.netIncome >= 0 ? "#6EE7B7" : "#FCA5A5"}
+          color={s.netIncome >= 0 ? "#4D9F91" : "#E66B67"}
         />
         <MiniStat
           label="Saved"
           value={rate === null ? "—" : `${Math.round(rate)}%`}
-          color="#D8D8D8"
+          color="#B8B4BF"
         />
       </div>
 
@@ -111,8 +111,8 @@ function IncomeExpenseBar({
   const max = Math.max(income, expenses, 1);
   return (
     <div className={`space-y-2 ${className}`}>
-      <Bar label="In" value={income} pct={(income / max) * 100} color="#4CAF72" />
-      <Bar label="Out" value={expenses} pct={(expenses / max) * 100} color="#E05252" />
+      <Bar label="In" value={income} pct={(income / max) * 100} color="#4D9F91" />
+      <Bar label="Out" value={expenses} pct={(expenses / max) * 100} color="#E66B67" />
     </div>
   );
 }
@@ -237,25 +237,25 @@ function IncomeStatement({ s }: { s: Statements }) {
           label="Total Income"
           value={inr(s.totalIncome)}
           icon={ArrowDownLeft}
-          accent="#34D399"
+          accent="#4D9F91"
         />
         <Tile
           label="Total Expenses"
           value={inr(s.totalExpenses)}
           icon={ArrowUpRight}
-          accent="#E05252"
+          accent="#E66B67"
         />
         <Tile
           label="Net Income"
           value={signed(s.netIncome)}
           icon={TrendingUp}
-          accent={s.netIncome >= 0 ? "#6EE7B7" : "#FCA5A5"}
+          accent={s.netIncome >= 0 ? "#4D9F91" : "#E66B67"}
         />
         <Tile
           label="Savings rate"
           value={s.savingsRate === null ? "Not enough data" : `${Math.round(s.savingsRate)}%`}
           icon={PiggyBank}
-          accent="#D8D8D8"
+          accent="#B8B4BF"
           small={s.savingsRate === null}
         />
       </div>
@@ -285,7 +285,7 @@ function IncomeStatement({ s }: { s: Statements }) {
           </span>
           <span
             className="va-mono text-[16.5px]"
-            style={{ color: s.netIncome >= 0 ? "#6EE7B7" : "#FCA5A5" }}
+            style={{ color: s.netIncome >= 0 ? "#4D9F91" : "#E66B67" }}
           >
             {signed(s.netIncome)}
           </span>
@@ -362,25 +362,25 @@ function CashFlowStatement({ s }: { s: Statements }) {
           label="Total Cash Inflows"
           value={inr(s.totalIncome)}
           icon={ArrowDownLeft}
-          accent="#34D399"
+          accent="#4D9F91"
         />
         <Tile
           label="Total Cash Outflows"
           value={inr(s.totalExpenses)}
           icon={ArrowUpRight}
-          accent="#E05252"
+          accent="#E66B67"
         />
         <Tile
           label="Net Cash Flow"
           value={signed(s.netIncome)}
           icon={TrendingUp}
-          accent={s.netIncome >= 0 ? "#6EE7B7" : "#FCA5A5"}
+          accent={s.netIncome >= 0 ? "#4D9F91" : "#E66B67"}
         />
         <Tile
           label="Closing Balance"
           value={closing === null ? "Unavailable" : inr(closing)}
           icon={PiggyBank}
-          accent="#D8D8D8"
+          accent="#B8B4BF"
           small={closing === null}
         />
       </div>
@@ -390,13 +390,13 @@ function CashFlowStatement({ s }: { s: Statements }) {
           label="Opening Balance"
           value={s.openingBalance === null ? null : inr(s.openingBalance)}
         />
-        <Row label="Total Cash Inflows" value={`+${inr(s.totalIncome)}`} color="#6EE7B7" />
-        <Row label="Total Cash Outflows" value={`−${inr(s.totalExpenses)}`} color="#FCA5A5" />
+        <Row label="Total Cash Inflows" value={`+${inr(s.totalIncome)}`} color="#4D9F91" />
+        <Row label="Total Cash Outflows" value={`−${inr(s.totalExpenses)}`} color="#E66B67" />
         <div className="va-divider my-3" />
         <Row
           label="Net Cash Flow"
           value={signed(s.netIncome)}
-          color={s.netIncome >= 0 ? "#6EE7B7" : "#FCA5A5"}
+          color={s.netIncome >= 0 ? "#4D9F91" : "#E66B67"}
           strong
         />
         <Row label="Closing Balance" value={closing === null ? null : inr(closing)} strong />
@@ -601,14 +601,14 @@ function TrendChart({ s }: { s: Statements }) {
                 className="w-1/2 rounded-t-md"
                 style={{
                   height: `${Math.max((p.income / max) * 100, p.income > 0 ? 3 : 0)}%`,
-                  background: "#34D399",
+                  background: "#4D9F91",
                 }}
               />
               <span
                 className="w-1/2 rounded-t-md"
                 style={{
                   height: `${Math.max((p.expenses / max) * 100, p.expenses > 0 ? 3 : 0)}%`,
-                  background: "#E05252",
+                  background: "#E66B67",
                 }}
               />
             </div>
@@ -620,10 +620,10 @@ function TrendChart({ s }: { s: Statements }) {
       </div>
       <div className="flex items-center gap-4 mt-3 text-[12px] text-purple-200/60">
         <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full" style={{ background: "#34D399" }} /> Income
+          <span className="w-2 h-2 rounded-full" style={{ background: "#4D9F91" }} /> Income
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full" style={{ background: "#E05252" }} /> Expenses
+          <span className="w-2 h-2 rounded-full" style={{ background: "#E66B67" }} /> Expenses
         </span>
       </div>
     </div>
@@ -643,7 +643,7 @@ function SavingsTrend({ s }: { s: Statements }) {
               className="block h-full rounded-full"
               style={{
                 width: `${Math.min(100, Math.max(p.savingsRate === null ? 0 : p.savingsRate, 0))}%`,
-                background: (p.net ?? 0) >= 0 ? "#6EE7B7" : "#FCA5A5",
+                background: (p.net ?? 0) >= 0 ? "#4D9F91" : "#E66B67",
               }}
             />
           </span>
