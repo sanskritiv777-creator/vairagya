@@ -5,21 +5,21 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Design system definition.
+ * Design system definition — "Midnight Jewel".
  *
  * The @theme inline block maps CSS custom properties to Tailwind utility
  * classes (e.g. --color-primary -> bg-primary, text-primary).
  *
- * The :root and .dark blocks define the actual color values using oklch.
- * All colors MUST use oklch format.
- *
+ * The :root and .dark blocks define the actual color values.
  * To add a new semantic color:
  * 1. Add the variable to :root (light value) and .dark (dark value)
  * 2. Register it in @theme inline as --color-<name>: var(--<name>)
  */
 
 @theme inline {
-  --font-sans: "Syne", system-ui, sans-serif;
+  --font-sans: "Manrope", system-ui, sans-serif;
+  --font-display: "DM Serif Display", Georgia, serif;
+  --font-num: "Space Grotesk", sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -52,6 +52,9 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-money-in: var(--money-in);
+  --color-money-out: var(--money-out);
+  --color-gold: var(--gold);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -64,38 +67,41 @@
 
 :root {
   --radius: 0.5rem;
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.97 0 0);
-  --card: oklch(0.19 0 0);
-  --card-foreground: oklch(0.97 0 0);
-  --popover: oklch(0.19 0 0);
-  --popover-foreground: oklch(0.97 0 0);
-  --primary: oklch(0.97 0 0);
-  --primary-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.24 0 0);
-  --secondary-foreground: oklch(0.9 0 0);
-  --muted: oklch(0.24 0 0);
-  --muted-foreground: oklch(0.62 0 0);
-  --accent: oklch(0.3 0 0);
-  --accent-foreground: oklch(0.97 0 0);
-  --destructive: oklch(0.62 0.18 25);
-  --destructive-foreground: oklch(0.97 0 0);
-  --border: oklch(0.28 0 0);
-  --input: oklch(0.3 0 0);
-  --ring: oklch(0.72 0 0);
-  --chart-1: oklch(0.67 0.14 150);
-  --chart-2: oklch(0.64 0.18 25);
-  --chart-3: oklch(0.72 0 0);
-  --chart-4: oklch(0.5 0 0);
-  --chart-5: oklch(0.35 0 0);
-  --sidebar: oklch(0.17 0 0);
-  --sidebar-foreground: oklch(0.97 0 0);
-  --sidebar-primary: oklch(0.97 0 0);
-  --sidebar-primary-foreground: oklch(0.145 0 0);
-  --sidebar-accent: oklch(0.24 0 0);
-  --sidebar-accent-foreground: oklch(0.97 0 0);
-  --sidebar-border: oklch(0.28 0 0);
-  --sidebar-ring: oklch(0.72 0 0);
+  --background: #101114;
+  --foreground: #F0E8DC;
+  --card: #191A20;
+  --card-foreground: #F0E8DC;
+  --popover: #191A20;
+  --popover-foreground: #F0E8DC;
+  --primary: #8B7BB8;
+  --primary-foreground: #101114;
+  --secondary: #24232D;
+  --secondary-foreground: #B8B4BF;
+  --muted: #24232D;
+  --muted-foreground: #898591;
+  --accent: #24232D;
+  --accent-foreground: #F0E8DC;
+  --destructive: #E66B67;
+  --destructive-foreground: #101114;
+  --border: #26262E;
+  --input: #24232D;
+  --ring: #B7A9DE;
+  --money-in: #4D9F91;
+  --money-out: #E66B67;
+  --gold: #D5A45B;
+  --chart-1: #4D9F91;
+  --chart-2: #E66B67;
+  --chart-3: #8B7BB8;
+  --chart-4: #D5A45B;
+  --chart-5: #24232D;
+  --sidebar: #191A20;
+  --sidebar-foreground: #F0E8DC;
+  --sidebar-primary: #8B7BB8;
+  --sidebar-primary-foreground: #101114;
+  --sidebar-accent: #24232D;
+  --sidebar-accent-foreground: #F0E8DC;
+  --sidebar-border: #26262E;
+  --sidebar-ring: #B7A9DE;
 }
 
 .dark {
@@ -116,7 +122,7 @@
     color: var(--color-foreground);
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
-    font-family: "Syne", system-ui, sans-serif;
+    font-family: "Manrope", system-ui, sans-serif;
   }
 
   button, input, textarea, select { font: inherit; letter-spacing: 0; }
@@ -132,13 +138,13 @@
   }
 }
 
-/* Legacy color utility neutralization keeps every existing screen on the new monochrome system. */
-:where([class*="text-purple"], [class*="text-fuchsia"], [class*="text-cyan"]) { color: var(--muted-foreground) !important; }
+/* Legacy color utility neutralization keeps every existing screen on the Midnight Jewel system. */
+:where([class*="text-purple"], [class*="text-fuchsia"], [class*="text-cyan"]) { color: var(--secondary-foreground) !important; }
 :where([class*="bg-purple"], [class*="bg-fuchsia"], [class*="bg-cyan"]) { background-color: var(--secondary) !important; }
 :where([class*="border-purple"], [class*="border-fuchsia"], [class*="border-cyan"]) { border-color: var(--border) !important; }
 :where([class*="divide-purple"]) > :not(:last-child) { border-color: var(--border) !important; }
 
-.money-in { color: oklch(0.68 0.13 150) !important; }
-.money-out { color: oklch(0.64 0.18 25) !important; }
-:where(.text-emerald-200,.text-emerald-300,.text-emerald-400) { color: oklch(0.68 0.13 150) !important; }
-:where(.text-rose-200,.text-rose-300,.text-rose-400) { color: oklch(0.64 0.18 25) !important; }
+.money-in { color: var(--money-in) !important; }
+.money-out { color: var(--money-out) !important; }
+:where(.text-emerald-200,.text-emerald-300,.text-emerald-400) { color: var(--money-in) !important; }
+:where(.text-rose-200,.text-rose-300,.text-rose-400) { color: var(--money-out) !important; }
