@@ -1987,10 +1987,10 @@ function AIInsightsPanel({ items, taxRate }: { items: UnifiedTxn[]; taxRate: num
           {insights.map((ins, i) => {
             const toneStyle =
               ins.tone === "positive"
-                ? { color: "#6EE7B7", bg: "bg-emerald-400/15", Icon: TrendingUp }
+                ? { color: "#4D9F91", bg: "bg-emerald-400/15", Icon: TrendingUp }
                 : ins.tone === "warning"
-                  ? { color: "#FCA5A5", bg: "bg-rose-400/15", Icon: AlertTriangle }
-                  : { color: "#F0ABFC", bg: "bg-fuchsia-400/15", Icon: Sparkles };
+                  ? { color: "#E66B67", bg: "bg-rose-400/15", Icon: AlertTriangle }
+                  : { color: "#B7A9DE", bg: "bg-fuchsia-400/15", Icon: Sparkles };
             const Icon = toneStyle.Icon;
             return (
               <div key={i} className="va-glass rounded-2xl p-4 flex gap-3">
