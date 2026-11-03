@@ -12,6 +12,7 @@ import type { ErrorComponentProps } from "@tanstack/react-router";
 import { App } from "@capacitor/app";
 import { isNative } from "@/native/platform";
 import { completeOAuthCallback } from "@/native/oauth";
+import { applyTheme, getThemePref, watchSystemTheme } from "@/lib/theme";
 
 import appCss from "../styles.css?url";
 import appIcon from "../assets/app-icon.png.asset.json";
@@ -128,6 +129,12 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+
+  // Apply the saved theme preference (dark / light / system) on every screen.
+  useEffect(() => {
+    applyTheme(getThemePref());
+    return watchSystemTheme(() => applyTheme(getThemePref()));
+  }, []);
 
     useEffect(() => {
     if (!isNative()) return;

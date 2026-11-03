@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import VairagyaIntro from "@/components/vairagya-intro";
+import { getThemePref, resolveTheme } from "@/lib/theme";
 import { supabase } from "@/integrations/supabase/client";
 
 export const ONBOARDED_KEY = "vairagya:onboarded";
@@ -26,6 +27,7 @@ export const Route = createFileRoute("/")({
 function IntroGate() {
   const navigate = useNavigate();
   const [gate, setGate] = useState<"checking" | "show">("checking");
+  const [introTheme, setIntroTheme] = useState<"dark" | "light">("dark");
 
   useEffect(() => {
     let cancelled = false;
@@ -42,6 +44,7 @@ function IntroGate() {
       const seen = localStorage.getItem(ONBOARDED_KEY) === "1";
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
+      setIntroTheme(resolveTheme(getThemePref()));
       if (data.session) navigate({ to: "/app", replace: true });
       else if (seen) navigate({ to: "/auth", replace: true });
       else setGate("show");
@@ -59,7 +62,7 @@ function IntroGate() {
 
   return (
     <VairagyaIntro
-      theme="dark"
+      theme={introTheme}
       showToggle={false}
       onGetStarted={() => {
         localStorage.setItem(ONBOARDED_KEY, "1");

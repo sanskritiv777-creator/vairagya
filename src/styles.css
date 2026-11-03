@@ -108,6 +108,50 @@
   color-scheme: dark;
 }
 
+/*
+ * Light theme — the same Midnight Jewel identity (lavender accent, jade/coral
+ * money colors, DM Serif + Space Grotesk + Manrope) on an off-white surface.
+ * Applied by toggling the `light` class on <html> (see src/lib/theme.ts).
+ */
+html.light {
+  color-scheme: light;
+  --background: #F5F4F8;
+  --foreground: #1B1826;
+  --card: #FFFFFF;
+  --card-foreground: #1B1826;
+  --popover: #FFFFFF;
+  --popover-foreground: #1B1826;
+  --primary: #6E5FA8;
+  --primary-foreground: #F5F4F8;
+  --secondary: #EDEBF2;
+  --secondary-foreground: #56505E;
+  --muted: #EDEBF2;
+  --muted-foreground: #6C6678;
+  --accent: #EDEBF2;
+  --accent-foreground: #1B1826;
+  --destructive: #C7504C;
+  --destructive-foreground: #F5F4F8;
+  --border: #E3E0EA;
+  --input: #E3E0EA;
+  --ring: #6E5FA8;
+  --money-in: #2E7D6F;
+  --money-out: #C04F4B;
+  --gold: #A87B2A;
+  --chart-1: #2E7D6F;
+  --chart-2: #C04F4B;
+  --chart-3: #6E5FA8;
+  --chart-4: #A87B2A;
+  --chart-5: #EDEBF2;
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #1B1826;
+  --sidebar-primary: #6E5FA8;
+  --sidebar-primary-foreground: #F5F4F8;
+  --sidebar-accent: #EDEBF2;
+  --sidebar-accent-foreground: #1B1826;
+  --sidebar-border: #E3E0EA;
+  --sidebar-ring: #6E5FA8;
+}
+
 @layer base {
   * {
     border-color: var(--color-border);
