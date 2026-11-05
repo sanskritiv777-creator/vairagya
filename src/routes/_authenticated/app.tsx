@@ -329,6 +329,10 @@ function Dashboard() {
           background: var(--background);
           font-family: 'Manrope', system-ui, sans-serif;
         }
+        .va-dashboard-viewport { overflow: hidden; touch-action: pan-y; }
+        .va-dashboard-track { display: flex; width: 200%; align-items: stretch; transition: transform .38s cubic-bezier(.22,.7,.2,1); }
+        .va-dashboard-page { flex: 0 0 50%; width: 50%; min-width: 0; }
+        @media (prefers-reduced-motion: reduce) { .va-dashboard-track { transition: none; } }
         .va-display { font-family: 'DM Serif Display', Georgia, serif; font-weight: 400; letter-spacing: -.01em; }
         .va-mono, .va-num { font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -.01em; }
         .va-glass { background: var(--card); border: 1px solid var(--border); box-shadow: none; }
@@ -2724,8 +2728,29 @@ function FeedbackPanel() {
 
 /** Settings: import controls in one place, plus data export. */
 function SettingsPanel({ ai, items }: { ai: AutoImport; items: UnifiedTxn[] }) {
+  const [theme, setTheme] = useState<ThemePref>(() => getThemePref());
+
   return (
     <div className="space-y-6">
+      <div>
+        <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-200/60 mb-2.5">Appearance</div>
+        <div className="grid grid-cols-3 gap-2" role="group" aria-label="Color theme">
+          {(["dark", "light", "system"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={theme === option}
+              onClick={() => {
+                setTheme(option);
+                setThemePref(option);
+              }}
+              className={`rounded-xl border px-3 py-3 text-[13px] capitalize transition-colors ${theme === option ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
       <div>
         <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-200/60 mb-2.5">
           Automatic import
