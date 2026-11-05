@@ -48,6 +48,7 @@ import { fetchInsights } from "@/lib/insights-client";
 import { useAutoImport, isNativeAndroidRuntime } from "@/hooks/use-auto-import";
 import { FinancialStatementsPanel } from "@/components/financial-health";
 import { VairagyaLogo } from "@/components/vairagya-logo";
+import { getThemePref, setThemePref, type ThemePref } from "@/lib/theme";
 type AutoImport = ReturnType<typeof useAutoImport>;
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -284,6 +285,8 @@ function Dashboard() {
     null,
   );
   const [homePeriod, setHomePeriod] = useState<"today" | "week" | "month">("today");
+  const [dashboardPage, setDashboardPage] = useState<0 | 1>(0);
+  const dashboardTouchStart = useRef<{ x: number; y: number } | null>(null);
   const [newIncome, setNewIncome] = useState({ source: "", amount: "" });
   const [newExpense, setNewExpense] = useState({ label: "", amount: "", category: "Software" });
   const [newTransfer, setNewTransfer] = useState({ label: "", amount: "" });
@@ -326,6 +329,10 @@ function Dashboard() {
           background: var(--background);
           font-family: 'Manrope', system-ui, sans-serif;
         }
+        .va-dashboard-viewport { overflow: hidden; touch-action: pan-y; }
+        .va-dashboard-track { display: flex; width: 200%; align-items: stretch; transition: transform .38s cubic-bezier(.22,.7,.2,1); }
+        .va-dashboard-page { flex: 0 0 50%; width: 50%; min-width: 0; }
+        @media (prefers-reduced-motion: reduce) { .va-dashboard-track { transition: none; } }
         .va-display { font-family: 'DM Serif Display', Georgia, serif; font-weight: 400; letter-spacing: -.01em; }
         .va-mono, .va-num { font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -.01em; }
         .va-glass { background: var(--card); border: 1px solid var(--border); box-shadow: none; }
@@ -387,7 +394,55 @@ function Dashboard() {
           </div>
         </div>
 
-        <div className="px-6 pt-6">
+        <nav className="flex justify-center gap-2 pt-5" aria-label="Dashboard pages">
+          {[0, 1].map((page) => (
+            <button
+              key={page}
+              type="button"
+              aria-label={page === 0 ? "Show main dashboard" : "Show Financial Statements"}
+              aria-current={dashboardPage === page ? "page" : undefined}
+              onClick={() => setDashboardPage(page as 0 | 1)}
+              className={`h-2 rounded-full transition-all duration-300 ${dashboardPage === page ? "w-6 bg-primary" : "w-2 bg-muted-foreground/40"}`}
+            />
+          ))}
+        </nav>
+
+        <div
+          className="va-dashboard-viewport mt-1"
+          onPointerDown={(event) => {
+            const target = event.target;
+            if (target instanceof Element && target.closest("[data-dashboard-swipe-ignore]")) {
+              dashboardTouchStart.current = null;
+              return;
+            }
+            if (event.pointerType !== "mouse") {
+              dashboardTouchStart.current = { x: event.clientX, y: event.clientY };
+            }
+          }}
+          onPointerUp={(event) => {
+            const start = dashboardTouchStart.current;
+            dashboardTouchStart.current = null;
+            if (!start) return;
+            const dx = event.clientX - start.x;
+            const dy = event.clientY - start.y;
+            if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.25) {
+              setDashboardPage(dx < 0 ? 1 : 0);
+            }
+          }}
+          onPointerCancel={() => { dashboardTouchStart.current = null; }}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowLeft") setDashboardPage(0);
+            if (event.key === "ArrowRight") setDashboardPage(1);
+          }}
+          tabIndex={0}
+          aria-label="Dashboard pages. Swipe left or right to change pages."
+        >
+          <div
+            className="va-dashboard-track"
+            style={{ transform: `translate3d(-${dashboardPage * 50}%, 0, 0)` }}
+          >
+          <section className="va-dashboard-page" aria-label="Main dashboard" aria-hidden={dashboardPage !== 0} inert={dashboardPage !== 0}>
+        <div className="px-6 pt-5">
           <p className="text-purple-200/70 text-[14.5px]">{greeting},</p>
           <h1 className="va-display text-3xl mt-1 truncate">{userName}</h1>
         </div>
@@ -414,7 +469,7 @@ function Dashboard() {
             {[
               { icon: ArrowDownLeft, label: "Income", onClick: () => setSheet("income") },
               { icon: ArrowUpRight, label: "Expense", onClick: () => setSheet("expense") },
-              { icon: FileBarChart2, label: "Statements", onClick: () => setTab("statements") },
+              { icon: FileBarChart2, label: "Statements", onClick: () => setDashboardPage(1) },
               { icon: User, label: "Profile", onClick: () => setTab("profile") },
             ].map((q) => (
               <button
@@ -531,13 +586,24 @@ function Dashboard() {
             </div>
           )}
         </Section>
+          </section>
+
+          <section className="va-dashboard-page px-6 pt-5" aria-label="Financial Statements" aria-hidden={dashboardPage !== 1} inert={dashboardPage !== 1}>
+            <div className="mb-5">
+              <h1 className="va-display text-2xl">Financial Statements</h1>
+              <p className="mt-1 text-[13px] text-muted-foreground">Income, spending, and cash flow</p>
+            </div>
+            <FinancialStatementsPanel items={items} />
+          </section>
+          </div>
+        </div>
 
         <div
           className="fixed left-1/2 -translate-x-1/2 z-30 w-[88%] max-w-md"
           style={{ bottom: "calc(1.25rem + env(safe-area-inset-bottom))" }}
         >
           <div className="va-dock flex items-center justify-between rounded-xl px-3 py-2">
-            <DockBtn icon={Home} active={tab === "home"} onClick={() => setTab("home")} />
+            <DockBtn icon={Home} active={tab === "home"} onClick={() => { setTab("home"); setDashboardPage(0); }} />
             <DockBtn icon={Receipt} active={tab === "ledger"} onClick={() => setTab("ledger")} />
             <button
               onClick={() => setSheet("add")}
@@ -855,15 +921,6 @@ function Dashboard() {
                 desc: "Account Aggregator · Sync transactions",
                 onClick: () => {
                   setTab("bank");
-                  setSheet(null);
-                },
-              },
-              {
-                icon: FileText,
-                label: "Financial Statements",
-                desc: "Income Statement & Cash Flow",
-                onClick: () => {
-                  setTab("statements");
                   setSheet(null);
                 },
               },
@@ -2671,8 +2728,29 @@ function FeedbackPanel() {
 
 /** Settings: import controls in one place, plus data export. */
 function SettingsPanel({ ai, items }: { ai: AutoImport; items: UnifiedTxn[] }) {
+  const [theme, setTheme] = useState<ThemePref>(() => getThemePref());
+
   return (
     <div className="space-y-6">
+      <div>
+        <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-200/60 mb-2.5">Appearance</div>
+        <div className="grid grid-cols-3 gap-2" role="group" aria-label="Color theme">
+          {(["dark", "light", "system"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={theme === option}
+              onClick={() => {
+                setTheme(option);
+                setThemePref(option);
+              }}
+              className={`rounded-xl border px-3 py-3 text-[13px] capitalize transition-colors ${theme === option ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
       <div>
         <div className="text-[12.5px] uppercase tracking-[0.2em] text-purple-200/60 mb-2.5">
           Automatic import
