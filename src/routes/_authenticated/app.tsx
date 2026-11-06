@@ -433,6 +433,16 @@ function Dashboard() {
             }
           }}
           onPointerCancel={() => { dashboardTouchStart.current = null; }}
+          onWheel={(event) => {
+            const target = event.target;
+            if (
+              target instanceof Element &&
+              target.closest('[data-dashboard-swipe-ignore], [class*="overflow-x-auto"]')
+            ) return;
+            if (Math.abs(event.deltaX) > Math.abs(event.deltaY) * 1.2 && Math.abs(event.deltaX) > 24) {
+              setDashboardPage(event.deltaX > 0 ? 1 : 0);
+            }
+          }}
           onKeyDown={(event) => {
             if (event.key === "ArrowLeft") setDashboardPage(0);
             if (event.key === "ArrowRight") setDashboardPage(1);
