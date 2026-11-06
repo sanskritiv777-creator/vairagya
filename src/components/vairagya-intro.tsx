@@ -37,6 +37,11 @@ const CSS = `
 .vi-tg{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:5}
 .vi-tg button{font:700 11px Manrope,sans-serif;padding:7px 14px;border:1px solid #F0E8DC;border-radius:3px;cursor:pointer;letter-spacing:.1em}
 .vi-cue{position:absolute;left:0;right:0;bottom:calc(50px + env(safe-area-inset-bottom,0px));text-align:center;font:700 10px Manrope,sans-serif;letter-spacing:.22em;color:#F0E8DC;pointer-events:none;z-index:3;animation:vi-bob 1.9s ease-in-out infinite}
+.vi-wrap.vi-light .vi-h1,.vi-wrap.vi-light .vi-hint,.vi-wrap.vi-light .vi-lab,.vi-wrap.vi-light .vi-cue{color:#1B1826;text-shadow:none}
+.vi-wrap.vi-light .vi-cta{color:#1B1826;background:rgba(255,255,255,.68);border-color:rgba(27,24,38,.32)}
+.vi-wrap.vi-light .vi-cta:active{border-color:#6E5FA8;color:#6E5FA8}
+.vi-wrap.vi-light .vi-dot{background:#1B1826}
+.vi-wrap.vi-light .vi-tg button{border-color:#6E5FA8}
 @keyframes vi-bob{0%,100%{opacity:.35;transform:translateY(0)}50%{opacity:.8;transform:translateY(-5px)}}
 @media (prefers-reduced-motion:reduce){.vi-cv{transform:none;transition:none}.vi-h1,.vi-hint,.vi-cta{opacity:1;transform:none;transition:none}.vi-cta{transform:translate(-50%,0)}.vi-cue{animation:none}}
 `;
@@ -105,7 +110,7 @@ const K = { mid: "#101114", gr: "#191A20", pl: "#24232D", iv: "#F0E8DC", lav: "#
 type Mode = "dark" | "light";
 const TH = {
   dark: { b0: "#24232D", b1: "#191A20", b2: "#101114", page: "#101114", gm: 0.5, gi: 0.34, wash: "139,123,184", washA: 0.3, ig: 0.35, ia0: 0.26, ia1: 0.1 },
-  light: { b0: "#8B7BB8", b1: "#6a5d92", b2: "#24232D", page: "#24232D", gm: 0.42, gi: 0.14, wash: "240,232,220", washA: 0.22, ig: 0.8, ia0: 0.5, ia1: 0.2 },
+  light: { b0: "#FFFFFF", b1: "#F5F4F8", b2: "#EDEBF2", page: "#F5F4F8", gm: 0.16, gi: 0.09, wash: "110,95,168", washA: 0.13, ig: 0.3, ia0: 0.14, ia1: 0.06 },
 };
 
 function bgFill(x: CanvasRenderingContext2D, w: number, h: number, m: Mode) {
@@ -527,7 +532,7 @@ export default function VairagyaIntro({
   };
 
   return (
-    <div className={"vi-wrap" + (className ? " " + className : "")} style={{ background: TH[mode].page }}>
+    <div className={"vi-wrap" + (mode === "light" ? " vi-light" : "") + (className ? " " + className : "")} style={{ background: TH[mode].page }}>
       <style>{CSS}</style>
       <div className="vi-scroll" ref={scRef}>
         <div className="vi-snap" data-i={0} ref={(el) => { secs.current[0] = el; }}>
@@ -553,7 +558,7 @@ export default function VairagyaIntro({
               key={m}
               type="button"
               onClick={() => setMode(m)}
-              style={{ background: mode === m ? "#F0E8DC" : "rgba(16,17,20,.35)", color: mode === m ? "#101114" : "#F0E8DC", opacity: mode === m ? 1 : 0.85 }}
+              style={{ background: mode === m ? (mode === "dark" ? "#F0E8DC" : "#6E5FA8") : "rgba(16,17,20,.08)", color: mode === m ? (mode === "dark" ? "#101114" : "#FFFFFF") : (mode === "dark" ? "#F0E8DC" : "#1B1826"), opacity: mode === m ? 1 : 0.85 }}
             >
               {m.toUpperCase()}
             </button>
