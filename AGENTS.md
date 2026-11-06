@@ -10,3 +10,4 @@
 <!-- LOVABLE:END -->
 
 - Keep all visual styling centralized around the "Midnight Jewel" semantic tokens (#101114 background, #191A20 cards, #8B7BB8 lavender accent, Manrope body + DM Serif Display headlines + Space Grotesk numbers) so feature screens remain visually consistent; green/red only for money received/spent, gold only for selective emphasis.
+- Keep the authenticated dashboard as two swipeable pages: the existing home content and the existing Financial Statements panel, sharing the same transaction data and calculations.
