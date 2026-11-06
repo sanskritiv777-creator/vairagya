@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import VairagyaIntro from "@/components/vairagya-intro";
-import { getThemePref, resolveTheme } from "@/lib/theme";
+import { getThemePref, resolveTheme, watchSystemTheme } from "@/lib/theme";
 import { supabase } from "@/integrations/supabase/client";
 
 export const ONBOARDED_KEY = "vairagya:onboarded";
@@ -51,6 +51,8 @@ function IntroGate() {
     })();
     return () => { cancelled = true; };
   }, [navigate]);
+
+  useEffect(() => watchSystemTheme(() => setIntroTheme(resolveTheme(getThemePref()))), []);
 
   if (gate === "checking") {
     return (
