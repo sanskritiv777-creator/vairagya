@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { BankConnectPanel } from "@/components/bank-connect";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Plus,
@@ -287,6 +287,8 @@ function Dashboard() {
   const [homePeriod, setHomePeriod] = useState<"today" | "week" | "month">("today");
   const [dashboardPage, setDashboardPage] = useState<0 | 1>(0);
   const dashboardTouchStart = useRef<{ x: number; y: number } | null>(null);
+  const dashboardPageRefs = useRef<Array<HTMLElement | null>>([]);
+  const [dashboardHeight, setDashboardHeight] = useState<number>();
   const [newIncome, setNewIncome] = useState({ source: "", amount: "" });
   const [newExpense, setNewExpense] = useState({ label: "", amount: "", category: "Software" });
   const [newTransfer, setNewTransfer] = useState({ label: "", amount: "" });
@@ -312,6 +314,16 @@ function Dashboard() {
 
   const userName = profile?.display_name ?? "there";
 
+  useLayoutEffect(() => {
+    const activePage = dashboardPageRefs.current[dashboardPage];
+    if (!activePage) return;
+    const updateHeight = () => setDashboardHeight(activePage.scrollHeight);
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(activePage);
+    return () => observer.disconnect();
+  }, [dashboardPage, items.length, profileQuery.data]);
+
   if (profileQuery.isLoading) {
     return (
       <div
@@ -329,8 +341,8 @@ function Dashboard() {
           background: var(--background);
           font-family: 'Manrope', system-ui, sans-serif;
         }
-        .va-dashboard-viewport { overflow: hidden; touch-action: pan-y; }
-        .va-dashboard-track { display: flex; width: 200%; align-items: stretch; transition: transform .38s cubic-bezier(.22,.7,.2,1); }
+        .va-dashboard-viewport { overflow: hidden; touch-action: pan-y; transition: height .32s cubic-bezier(.22,.7,.2,1); }
+        .va-dashboard-track { display: flex; width: 200%; align-items: flex-start; transition: transform .38s cubic-bezier(.22,.7,.2,1); }
         .va-dashboard-page { flex: 0 0 50%; width: 50%; min-width: 0; }
         @media (prefers-reduced-motion: reduce) { .va-dashboard-track { transition: none; } }
         .va-display { font-family: 'DM Serif Display', Georgia, serif; font-weight: 400; letter-spacing: -.01em; }
@@ -409,6 +421,7 @@ function Dashboard() {
 
         <div
           className="va-dashboard-viewport mt-1"
+          style={dashboardHeight ? { height: `${dashboardHeight}px` } : undefined}
           onPointerDown={(event) => {
             const target = event.target;
             if (
@@ -454,7 +467,7 @@ function Dashboard() {
             className="va-dashboard-track"
             style={{ transform: `translate3d(-${dashboardPage * 50}%, 0, 0)` }}
           >
-          <section className="va-dashboard-page" aria-label="Main dashboard" aria-hidden={dashboardPage !== 0} inert={dashboardPage !== 0}>
+          <section ref={(node) => { dashboardPageRefs.current[0] = node; }} className="va-dashboard-page" aria-label="Main dashboard" aria-hidden={dashboardPage !== 0} inert={dashboardPage !== 0}>
         <div className="px-6 pt-5">
           <p className="text-purple-200/70 text-[14.5px]">{greeting},</p>
           <h1 className="va-display text-3xl mt-1 truncate">{userName}</h1>
@@ -601,7 +614,7 @@ function Dashboard() {
         </Section>
           </section>
 
-          <section className="va-dashboard-page px-6 pt-5" aria-label="Financial Statements" aria-hidden={dashboardPage !== 1} inert={dashboardPage !== 1}>
+          <section ref={(node) => { dashboardPageRefs.current[1] = node; }} className="va-dashboard-page px-6 pt-5" aria-label="Financial Statements" aria-hidden={dashboardPage !== 1} inert={dashboardPage !== 1}>
             <div className="mb-5">
               <h1 className="va-display text-2xl">Financial Statements</h1>
               <p className="mt-1 text-[13px] text-muted-foreground">Income, spending, and cash flow</p>

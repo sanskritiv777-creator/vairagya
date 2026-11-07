@@ -1,4 +1,4 @@
 - [x] Add two swipeable dashboard pages and remove only the Financial Statements menu row.
 - [x] Add persisted Dark / Light / System control to existing Settings.
 - [x] Keep onboarding's existing vertical slides and synchronize its theme.
-- [ ] Run final type/build checks and browser verification; then close this roadmap.
+- [x] Run type/build checks and browser verification; all requested checks passed.
