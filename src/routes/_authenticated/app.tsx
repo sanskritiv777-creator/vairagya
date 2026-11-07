@@ -287,7 +287,6 @@ function Dashboard() {
   const [homePeriod, setHomePeriod] = useState<"today" | "week" | "month">("today");
   const [dashboardPage, setDashboardPage] = useState<0 | 1>(0);
   const dashboardTouchStart = useRef<{ x: number; y: number } | null>(null);
-  const dashboardViewportRef = useRef<HTMLDivElement>(null);
   const dashboardPageRefs = useRef<Array<HTMLElement | null>>([]);
   const [dashboardHeight, setDashboardHeight] = useState<number>();
   const [newIncome, setNewIncome] = useState({ source: "", amount: "" });
@@ -421,7 +420,6 @@ function Dashboard() {
         </nav>
 
         <div
-          ref={dashboardViewportRef}
           className="va-dashboard-viewport mt-1"
           style={dashboardHeight ? { height: `${dashboardHeight}px` } : undefined}
           onPointerDown={(event) => {
