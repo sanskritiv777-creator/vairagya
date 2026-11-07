@@ -27,7 +27,7 @@ export const Route = createFileRoute("/")({
 function IntroGate() {
   const navigate = useNavigate();
   const [gate, setGate] = useState<"checking" | "show">("checking");
-  const [introTheme, setIntroTheme] = useState<"dark" | "light">("dark");
+  const [introTheme, setIntroTheme] = useState<"dark" | "light">(() => resolveTheme(getThemePref()));
 
   useEffect(() => {
     let cancelled = false;
